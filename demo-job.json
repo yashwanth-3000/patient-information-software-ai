@@ -1,0 +1,44 @@
+{
+  "job_id": "demo-create-five-patients-001",
+  "status": "approved",
+  "demo": true,
+  "task": "create_patients",
+  "approved_by": "web-app-demo-user",
+  "patients": [
+    {
+      "first_name": "TESTONE",
+      "last_name": "PATIENT",
+      "age": "21",
+      "gender": "M",
+      "address": "DEMO ONLY 1"
+    },
+    {
+      "first_name": "TESTTWO",
+      "last_name": "PATIENT",
+      "age": "32",
+      "gender": "F",
+      "address": "DEMO ONLY 2"
+    },
+    {
+      "first_name": "TESTTHREE",
+      "last_name": "PATIENT",
+      "age": "43",
+      "gender": "M",
+      "address": "DEMO ONLY 3"
+    },
+    {
+      "first_name": "TESTFOUR",
+      "last_name": "PATIENT",
+      "age": "54",
+      "gender": "F",
+      "address": "DEMO ONLY 4"
+    },
+    {
+      "first_name": "TESTFIVE",
+      "last_name": "PATIENT",
+      "age": "65",
+      "gender": "M",
+      "address": "DEMO ONLY 5"
+    }
+  ]
+}
