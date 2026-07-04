@@ -64,19 +64,24 @@ def run_script_pipeline(ocr_result: Dict[str, Any], emit: Emit) -> Dict[str, Any
         description=(
             "Normalize this OCR reading of a handwritten doctor's script. "
             "List every plausible patient ID candidate (primary first, then "
-            "alternates from ambiguous digits). Clean up medicine lines but keep "
-            "the raw text. If other_text mentions a duration (like 'for 15 days') "
-            "that applies to the whole script, copy it into each medicine's dosage. "
+            "alternates from ambiguous digits). For each medicine keep the raw "
+            "text AND the OCR's expanded reading when present. If the OCR found "
+            "a course duration (like 'one month' or 'for 15 days'), copy it into "
+            "each medicine's dosage that has no more specific duration. Drop "
+            "cancelled/struck-through text - the doctor rejected it. Do NOT turn "
+            "complaints (c/o notes) or the amount into medicines. "
             "NEVER invent values that are not in the OCR: missing fields stay null "
             "or empty. Return STRICT JSON only:\n"
             '{"patient_id_candidates":["<id>", "<alternate id>"],'
             '"patient_name":"<name or null>",'
-            '"medicines":[{"raw_text":"<as written>","dosage":"<as written or empty>"}],'
+            '"medicines":[{"raw_text":"<as written>","expanded":"<OCR expansion or null>",'
+            '"dosage":"<as written or empty>"}],'
+            '"duration":"<course duration or null>","complaints":["..."],'
             '"amount":<number or null>,"date":"YYYY-MM-DD or null","concerns":["..."]}\n\n'
             f"OCR reading:\n{json.dumps(ocr_result, ensure_ascii=True)}"
         ),
         expected_output="Strict JSON with patient_id_candidates, patient_name, "
-                        "medicines, amount, date, concerns.",
+                        "medicines, duration, complaints, amount, date, concerns.",
     )
     intake_data = parse_json(intake) or fallback_intake(ocr_result)
     emit("script_intake", "completed",
@@ -101,11 +106,43 @@ def run_script_pipeline(ocr_result: Dict[str, Any], emit: Emit) -> Dict[str, Any
              f"PIS answered for RegNo {candidate}: "
              + ("record found" if record.get("found") else record.get("error", "not found")),
              {"regno": candidate, "found": bool(record.get("found"))})
-        # Stop early when the first candidate matches the script name well.
+        # Stop early only when the found record's name actually fits the script.
+        # A found record with the WRONG name means the digits were misread, so
+        # the remaining alternate candidates must still be tried.
         if record.get("found") and name_similarity(
-            patient_full_name(record), str(intake_data.get("patient_name", ""))
+            str(intake_data.get("patient_name", "")), patient_full_name(record)
         ) >= 0.75:
             break
+
+    # Digit-confusion rescue: handwriting swaps like 9/2 or 8/6 mean the real
+    # RegNo is often one digit away. If nothing looked up so far carries the
+    # script's name, probe single-digit variants of the primary candidate.
+    script_name = str(intake_data.get("patient_name") or "")
+
+    def name_fits(entry: Dict[str, Any]) -> bool:
+        result = entry.get("result", {})
+        if not result.get("found"):
+            return False
+        if not script_name.strip():
+            return True
+        return name_similarity(script_name, patient_full_name(result)) >= 0.75
+
+    if candidates and not any(name_fits(entry) for entry in lookups):
+        tried = {entry["regno"] for entry in lookups}
+        variants = digit_confusion_variants(candidates[0], exclude=tried)
+        if variants:
+            emit("patient_records", "progress",
+                 f"No name-consistent record yet. Probing digit-confusion variants: {', '.join(variants)}.",
+                 {"variants": variants})
+        for variant in variants:
+            record = tools.lookup_patient(variant)
+            lookups.append({"regno": variant, "result": record})
+            if record.get("found"):
+                emit("patient_records", "progress",
+                     f"Variant RegNo {variant} found: {patient_full_name(record)}.",
+                     {"regno": variant})
+                if name_fits(lookups[-1]):
+                    break
 
     records_decision_raw = run_single_task(
         llm,
@@ -120,10 +157,21 @@ def run_script_pipeline(ocr_result: Dict[str, Any], emit: Emit) -> Dict[str, Any
             f"  id candidates: {json.dumps(candidates)}\n\n"
             "Live PIS lookups already performed (real records from the clinic database):\n"
             f"{json.dumps(lookups, ensure_ascii=True)}\n\n"
-            "Decide the identity match. When the script has no patient name, a found "
-            "PIS record for the primary candidate counts as matched (the RegNo is the "
-            "identity). If no lookup matches but another candidate ID was NOT yet "
-            "tried, you may request it via retry_regno. Return STRICT JSON:\n"
+            "Decide the identity match. Doctors write only the patient's FIRST name "
+            "(often without surname, sometimes misspelled: Shilaj/Shilaja, "
+            "Sunita/Sunitha, Rama Rew/Rama Rao). The PIS stores full names with "
+            "surname and initials. If the script name clearly corresponds to the "
+            "first name of the found PIS record (allowing 1-2 letter spelling drift "
+            "and a missing surname), that IS a match - do not call it a mismatch "
+            "just because the PIS name has extra parts. When the script has no "
+            "patient name, a found PIS record for the primary candidate counts as "
+            "matched (the RegNo is the identity). Use 'mismatch' ONLY when the "
+            "PRIMARY candidate's record was found but its name genuinely disagrees "
+            "with the script (e.g. Sunitha vs Krishnamurthy). If only an ALTERNATE "
+            "candidate found a record and its name does not fit the script, that "
+            "alternate is simply the wrong number - ignore it and report "
+            "'not_found'. If no lookup matches but another candidate ID was NOT "
+            "yet tried, you may request it via retry_regno. Return STRICT JSON:\n"
             '{"decision":"matched|mismatch|not_found","matched_regno":"<regno> or null",'
             '"pis_name":"name from PIS or null","name_match_score":0.0,'
             '"retry_regno":null,"reasoning":"one sentence"}'
@@ -170,8 +218,11 @@ def run_script_pipeline(ocr_result: Dict[str, Any], emit: Emit) -> Dict[str, Any
         raw = str(medicine.get("raw_text", "")).strip()
         if not raw:
             continue
-        matches = tools.match_remedy(raw)
-        grounded.append({"raw_text": raw, "dosage": medicine.get("dosage"), "corpus_matches": matches})
+        expanded = str(medicine.get("expanded") or "").strip()
+        query = f"{raw} ({expanded})" if expanded and expanded.lower() != raw.lower() else raw
+        matches = tools.match_remedy(query)
+        grounded.append({"raw_text": raw, "expanded": expanded or None,
+                         "dosage": medicine.get("dosage"), "corpus_matches": matches})
         top = matches[0]["name"] if matches else "no match"
         emit("pharmacist", "progress",
              f"Line {index + 1} \"{raw}\": top corpus match {top}.",
@@ -189,9 +240,16 @@ def run_script_pipeline(ocr_result: Dict[str, Any], emit: Emit) -> Dict[str, Any
             "(or mark it unrecognized), extract the potency (like 30C, 200C, 1M, Q, 6X) "
             "from the raw text, validate the potency against the remedy's common "
             "potencies, and keep the dosage exactly as given (empty stays empty). "
-            "'SL' / '8L' / 'S.L.' is Sac Lac placebo: canonical remedy 'Sac Lac', no "
-            "potency, not a flag-worthy problem. Include EVERY input line in items, "
-            "in order. Return STRICT JSON only:\n"
+            "The doctor writes heavy shorthand: use the 'expanded' reading and the "
+            "corpus abbreviation lists to resolve it (e.g. 'CF 6X comp' -> Calcarea "
+            "Fluorica, 'KP 6X' -> Kali Phosphoricum, 'B-16' -> Bio-Combination "
+            "tablets, 'Thyr 3X' -> Thyroidinum, 'Y-lax' -> Y-Lax, 'Rat 200' -> "
+            "Ratanhia Peruviana). A confident top corpus match whose abbreviations "
+            "plausibly fit the handwriting IS a recognition - accept it instead of "
+            "flagging. 'SL' / '8L' / 'S.L.' is Sac Lac placebo: canonical remedy "
+            "'Sac Lac', no potency, not a flag-worthy problem. Only mark a line "
+            "unrecognized when no corpus match is plausible at all. Include EVERY "
+            "input line in items, in order. Return STRICT JSON only:\n"
             '{"items":[{"raw_text":"<as given>","remedy":"<canonical name or null>",'
             '"potency":"<potency or null>","potency_valid":true,'
             '"dosage":"<as given>","confidence":0.0,'
@@ -224,13 +282,18 @@ def run_script_pipeline(ocr_result: Dict[str, Any], emit: Emit) -> Dict[str, Any
             "CRITICAL: copy every value from the evidence below. NEVER fabricate or "
             "'infer from common practice' a dosage, amount, date or any other value. "
             "If a value is missing in the evidence it must be null (and, if it "
-            "matters, listed in review_reasons). Include one prescriptions entry for "
+            "matters, listed in review_reasons). Dosage must be the actual dosage "
+            "text from the evidence or null - never a placeholder phrase like "
+            "'as written'. All confidence values must be between 0.0 and 1.0 "
+            "(corpus rerank scores are NOT confidences - judge confidence yourself "
+            "from how well the evidence agrees). Include one prescriptions entry for "
             "EVERY pharmacy item, including Sac Lac placebo lines. Return STRICT JSON only:\n"
             '{"regno":"<regno>","patient_name":"from PIS if matched else from script",'
             '"identity":{"status":"matched|mismatch|not_found","pis_name":"<name or null>",'
             '"score":0.0},"prescriptions":[{"text":"<remedy potency - dosage, from evidence>",'
             '"remedy":"<canonical or null>","potency":"<or null>","dosage":"<or null>",'
             '"confidence":0.0,"citation":"<corpus citation>"}],'
+            '"duration":"<course duration or null>","complaints":["..."],'
             '"amount":<number or null>,"date":"YYYY-MM-DD or null",'
             '"ready_for_entry":true,"review_reasons":["..."],"summary":"one sentence"}\n\n'
             f"Intake: {json.dumps(intake_data, ensure_ascii=True)}\n"
@@ -243,6 +306,9 @@ def run_script_pipeline(ocr_result: Dict[str, Any], emit: Emit) -> Dict[str, Any
     form = parse_json(composer_raw) or {}
     form.setdefault("ready_for_entry", False)
     form.setdefault("review_reasons", [])
+    if not form.get("regno"):
+        form["regno"] = (records_decision.get("matched_regno") if matched else None) \
+            or (candidates[0] if candidates else None)
     form["evidence"] = {
         "ocr": ocr_result,
         "pis_lookups": lookups,
@@ -289,13 +355,36 @@ def fallback_intake(ocr_result: Dict[str, Any]) -> Dict[str, Any]:
         "patient_id_candidates": [c for c in candidates if c],
         "patient_name": str(obj(ocr_result.get("patient_name")).get("value") or ""),
         "medicines": [
-            {"raw_text": str(m.get("raw_text") or ""), "dosage": m.get("dosage")}
+            {"raw_text": str(m.get("raw_text") or ""), "expanded": m.get("expanded"),
+             "dosage": m.get("dosage")}
             for m in ocr_result.get("medicines", []) or []
         ],
+        "duration": obj(ocr_result.get("duration")).get("value"),
+        "complaints": ocr_result.get("complaints", []) or [],
         "amount": obj(ocr_result.get("amount")).get("value"),
         "date": obj(ocr_result.get("date")).get("value"),
         "concerns": ["intake agent output was unparseable; used OCR passthrough"],
     }
+
+
+CONFUSABLE_DIGITS = {"9": "2", "2": "9", "8": "6", "6": "8", "0": "6", "4": "9", "7": "9", "3": "5", "5": "3"}
+
+
+def digit_confusion_variants(regno: str, exclude: set, limit: int = 6) -> List[str]:
+    """RegNos one confusable digit away from the OCR's primary reading,
+    most-significant digit first (that is where misreads hurt the most)."""
+    regno = "".join(ch for ch in str(regno) if ch.isdigit())
+    variants: List[str] = []
+    for position, digit in enumerate(regno):
+        swap = CONFUSABLE_DIGITS.get(digit)
+        if not swap:
+            continue
+        variant = regno[:position] + swap + regno[position + 1:]
+        if variant not in exclude and variant not in variants:
+            variants.append(variant)
+        if len(variants) >= limit:
+            break
+    return variants
 
 
 def patient_full_name(record: Dict[str, Any]) -> str:
@@ -304,12 +393,25 @@ def patient_full_name(record: Dict[str, Any]) -> str:
 
 
 def name_similarity(left: str, right: str) -> float:
-    left_tokens = set(normalize_name(left).split())
-    right_tokens = set(normalize_name(right).split())
+    """Token similarity tolerant of the clinic's habits: scripts carry only a
+    (possibly misspelled) first name while the PIS stores the full name."""
+    left_tokens = [t for t in normalize_name(left).split() if len(t) > 1]
+    right_tokens = [t for t in normalize_name(right).split() if len(t) > 1]
     if not left_tokens or not right_tokens:
         return 0.0
-    overlap = len(left_tokens & right_tokens)
-    return overlap / max(len(left_tokens), len(right_tokens))
+    from difflib import SequenceMatcher
+
+    matched = 0
+    for token in left_tokens:
+        best = max(
+            (SequenceMatcher(None, token, other).ratio() for other in right_tokens),
+            default=0.0,
+        )
+        if best >= 0.75:
+            matched += 1
+    # Score against the script side only: extra surname/initials in the PIS
+    # record must not dilute a solid first-name match.
+    return matched / len(left_tokens)
 
 
 def normalize_name(value: str) -> str:

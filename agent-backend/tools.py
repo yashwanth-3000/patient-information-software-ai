@@ -44,29 +44,44 @@ def remedy_documents() -> List[str]:
     return documents
 
 
-OCR_PROMPT = """You are reading a photographed handwritten homeopathy doctor's script from an Indian clinic.
+OCR_PROMPT = """You are reading a photographed handwritten homeopathy doctor's script from an Indian clinic. The doctor writes fast, abbreviated shorthand in blue or red pen on small chits. Read it like the clinic's own compounder would.
 
-The script normally contains:
-- A patient registration number (RegNo / ID number, usually 1-6 digits)
-- The patient's name
-- One or more homeopathic medicines, often abbreviated (e.g. "Ars Alb 30", "Nux Vom 200", "Rhus Tox 1M", "SBL drops"), sometimes with dosage instructions (e.g. "3-3-3", "BD", "TDS", "1 week")
-- "SL" (often looks like "8L" or "S.L.") means Sac Lac placebo pills and is very common - prefer reading it as "SL"
-- A complaint line like "c/o Skin Rash" ("c/o" = complains of)
-- A duration like "for 15 days" that applies to the whole prescription
-- An amount of money to be paid (in rupees, e.g. "150/-", "Rs 200")
-- Possibly a date
+LAYOUT (almost always the same):
+- Top, underlined: the patient registration number (RegNo, 3-6 digits). Sometimes the name is above the number.
+- Below (or above), underlined: the patient's name (often a single Telugu first name like Sunitha, Bharathi, Shilaja, sometimes with an initial like "Rama Rao. T").
+- Middle: medicine lines, sometimes split into circled sections (1), (2) meaning packet/bottle 1, packet/bottle 2. Keep the section number with its medicines.
+- Bottom: a duration for the course ("one month", "15 days") and the amount to pay, a plain underlined/circled number like 300, 650, 280 (sometimes "Rs = 280"). The amount is money, NOT a medicine.
 
-Extract everything you can read. For every field give your best reading AND alternates when handwriting is ambiguous (e.g. a digit that could be 3 or 5).
+STRUCK-THROUGH TEXT: anything crossed out with a line or scribbled over was CANCELLED by the doctor. Do not include it in medicines; mention it in other_text only.
+
+SHORTHAND DICTIONARY (this clinic's habits):
+- "SL" (often looks like "8L", "S.L.", or a fancy S) = Sac Lac placebo pills. Extremely common, appears in most scripts.
+- Biochemic salts written as letters + X potency: "CF 6X" = Calc Fluor, "KP 6X" = Kali Phos, "MP 6X" = Mag Phos, "CP" = Calc Phos, "NP" = Nat Phos. "comp"/"compo" after one means compound tablets. "(TB)" or "TAB" = tablets.
+- "B-" plus a number ("B-16", "B-28") = Bio-Combination tablet number.
+- Proprietary items: "Y-lax" (laxative tablets, may look like "ylox"/"Yhox"), "Thyr 3X"/"Thy 3X" (Thyroidinum), "Phyto Berry"/"Phytolacca Berry" (weight tablets).
+- Remedy + potency: "Ruta 30", "Bry 30", "Rat 200", "Caust 30", "Aesc 30", "Coloc 200", "Bell 30". Potencies: 6, 30, 200, 1M, 6X, 12X, 3X, Q.
+- "(HS)" = at bedtime, "(TD)"/"TDS" = three times a day, "BD" = twice a day, "2-2-2" = pills morning-noon-night, "4-6" = pill counts, "1/2 oz" or dram marks = liquid quantity, "drops"/"dous" = drops, "1 fl" = one fluid (bottle).
+- "c/o" = complains of (a symptom note, not a medicine). Notes like "in water", "apply" (external use), "ear sound", "acidity" are instructions/complaints - put them in dosage or other_text, not as medicines.
+- A number like "15 in course" = quantity for the course.
+
+READ CAREFULLY:
+- Curly capital S at a line start is usually "SL". A line that is just squiggles repeated (like SL written twice) is two SL doses for different packets.
+- Digits are sloppy: 2/3, 2/9, 4/9, 7/9, 0/6, 4/6, 3/5, 6/8, 0/8 confusions are common. IMPORTANT: this doctor's "2" has a long curled tail and is constantly mistaken for "9" - whenever you read a 9 in the RegNo (especially as the first digit), ALWAYS include the same number with 2 in that position as an alternate, and vice versa. Give alternates for every ambiguous digit in the RegNo - the RegNo is the single most important field.
+- Names are Indian (Telugu): prefer readings like Sunitha, Bharathi, Shilaja, Krishnamurthy, Rama Rao, Varalakshmi over non-Indian words.
+- Do not turn stray marks, underlines or the amount into medicines. If a line is illegible, still include it with your best guess, low confidence, and note it.
 
 Return STRICT JSON only, no markdown fences:
 {
   "patient_id": {"value": "27531", "confidence": 0.0-1.0, "alternates": ["27581"]},
   "patient_name": {"value": "...", "confidence": 0.0-1.0, "alternates": []},
   "medicines": [
-    {"raw_text": "Ars Alb 30", "dosage": "3-3-3 x 1 week", "confidence": 0.0-1.0}
+    {"raw_text": "as written, e.g. CF 6X comp", "expanded": "your best expansion, e.g. Calcarea Fluorica 6X compound tablets", "section": 1, "dosage": "2-2-2 / one month / as written", "confidence": 0.0-1.0}
   ],
+  "duration": {"value": "one month or null", "confidence": 0.0-1.0},
   "amount": {"value": 150, "confidence": 0.0-1.0},
   "date": {"value": "2026-07-04 or null", "confidence": 0.0-1.0},
+  "complaints": ["c/o notes, symptom words like 'ear sound', 'acidity'"],
+  "cancelled_text": "anything struck through",
   "other_text": "anything else legible",
   "legibility_notes": "short note on what was hard to read"
 }"""
