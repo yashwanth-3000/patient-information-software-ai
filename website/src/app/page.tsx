@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const ArrowIcon = () => (
   <svg viewBox="0 0 20 20" aria-hidden="true">
     <path d="M4 10h12M11 5l5 5-5 5" />
@@ -28,6 +30,7 @@ export default function Home() {
           <span>patient-information-software-ai</span>
         </a>
         <div className="nav-links">
+          <Link href="/upload">Upload</Link>
           <a href="#how-it-works">Workflow</a>
           <a href="#safety">Safety</a>
           <a href="https://github.com/yashwanth-3000/patient-information-software-ai" target="_blank" rel="noreferrer">GitHub</a>
@@ -42,8 +45,8 @@ export default function Home() {
             Approved app data arrives through one simple button inside PIS.
           </p>
           <div className="hero-actions">
-            <a className="retro-button primary-button" href="#demo">Open demo <ArrowIcon /></a>
-            <a className="retro-button" href="#safety">View safety controls</a>
+            <Link className="retro-button primary-button" href="/upload">Upload scripts <ArrowIcon /></Link>
+            <a className="retro-button" href="#how-it-works">See the workflow</a>
           </div>
         </div>
 
