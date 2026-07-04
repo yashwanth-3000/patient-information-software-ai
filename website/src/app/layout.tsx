@@ -15,7 +15,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "ClinicClick — Less clicking. More caring.",
+  title: "patient-information-software-ai | Care stays human",
   description:
     "A safety-first AI assistant for repetitive patient information workflows.",
 };

@@ -1,6 +1,6 @@
-# ClinicClick website
+# patient-information-software-ai website
 
-React and Next.js landing page for ClinicClick.
+React and Next.js landing page for Patient Information Software AI.
 
 ## Development
 

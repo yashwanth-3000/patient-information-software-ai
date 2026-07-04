@@ -71,11 +71,11 @@ svg { width: 1.05em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke
   .hero { grid-template-columns: 1fr; padding-top: 45px; }.hero-copy { text-align: center; display: flex; align-items: center; flex-direction: column; }.hero-visual { width: min(620px, 100%); margin: 0 auto; }.proof-grid { grid-template-columns: repeat(2, 1fr); padding: 24px 0; }.proof-grid p { grid-column: 1 / -1; text-align: center; }.safety-grid { gap: 60px; }.note-top { right: 0; }.note-bottom { left: 0; }
 }
 @media (max-width: 700px) {
-  .shell { width: min(100% - 32px, 1180px); }.nav { height: 72px; }.nav-links > a:not(.nav-cta) { display: none; }.nav-cta { padding: 9px 12px; }.hero { padding: 44px 0 70px; gap: 45px; min-height: auto; }.hero h1 { font-size: 55px; }.hero-lede { font-size: 16px; }.hero-actions { flex-direction: column; gap: 18px; }.hero-visual { min-height: 430px; }.app-card { width: min(100%, 420px); transform: none; }.floating-note { display: none; }.orb-one { width: 340px; height: 340px; }.app-body { padding: 18px; }.proof-grid { grid-template-columns: 1fr 1fr; }.proof-grid div { font-size: 10px; }.section { padding-block: 82px; }.section-heading, .safety-grid { grid-template-columns: 1fr; gap: 30px; }.steps { grid-template-columns: 1fr; gap: 42px; margin-top: 55px; }.safety { padding: 82px 0; }.safety-grid { gap: 55px; }.demo h2, .section-heading h2, .safety h2 { font-size: 41px; }.code-block { padding: 12px 14px; }.code-block code { white-space: nowrap; }.footer { grid-template-columns: 1fr 1fr; padding: 28px 0; row-gap: 20px; }.footer p { order: 3; grid-column: 1 / -1; text-align: left; }.footer > span { text-align: right; }
+  .shell { width: min(100% - 32px, 1180px); }.nav { height: 72px; }.nav > .brand { gap: 7px; font-size: 11px; }.nav > .brand .brand-mark { width: 24px; height: 24px; flex: 0 0 24px; }.nav > .brand .brand-mark span:first-child { width: 11px; height: 4px; left: 7px; top: 10px; }.nav > .brand .brand-mark span:last-child { height: 11px; width: 4px; left: 10px; top: 7px; }.nav-links > a:not(.nav-cta) { display: none; }.nav-cta { padding: 9px 12px; }.hero { padding: 44px 0 70px; gap: 45px; min-height: auto; }.hero h1 { font-size: 55px; }.hero-lede { font-size: 16px; }.hero-actions { flex-direction: column; gap: 18px; }.hero-visual { min-height: 430px; }.app-card { width: min(100%, 420px); transform: none; }.floating-note { display: none; }.orb-one { width: 340px; height: 340px; }.app-body { padding: 18px; }.proof-grid { grid-template-columns: 1fr 1fr; }.proof-grid div { font-size: 10px; }.section { padding-block: 82px; }.section-heading, .safety-grid { grid-template-columns: 1fr; gap: 30px; }.steps { grid-template-columns: 1fr; gap: 42px; margin-top: 55px; }.safety { padding: 82px 0; }.safety-grid { gap: 55px; }.demo h2, .section-heading h2, .safety h2 { font-size: 41px; }.code-block { padding: 12px 14px; }.code-block code { white-space: nowrap; }.footer { grid-template-columns: 1fr 1fr; padding: 28px 0; row-gap: 20px; }.footer p { order: 3; grid-column: 1 / -1; text-align: left; }.footer > span { text-align: right; }
 }
 @media (max-width: 420px) { .hero h1 { font-size: 47px; }.field-grid { grid-template-columns: 1fr; }.field-wide { grid-column: auto; }.app-card { width: calc(100% + 8px); }.proof-grid { gap: 14px; } }
 
-/* Centered product hero inspired by the reference layout, in ClinicClick colors. */
+/* Centered product hero inspired by the reference layout. */
 .hero {
   min-height: 680px;
   padding: clamp(56px, 8vh, 88px) 0 100px;
@@ -216,4 +216,6 @@ svg { width: 1.05em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke
 
 @media (max-width: 420px) {
   .hero h1 { font-size: 43px; }
+  .footer { grid-template-columns: 1fr; }
+  .footer p, .footer > span { grid-column: 1; text-align: left; }
 }

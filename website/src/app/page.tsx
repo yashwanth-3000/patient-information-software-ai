@@ -41,12 +41,12 @@ export default function Home() {
   return (
     <main>
       <nav className="nav shell" aria-label="Main navigation">
-        <a className="brand" href="#top" aria-label="ClinicClick home">
+        <a className="brand" href="#top" aria-label="Patient Information Software AI home">
           <span className="brand-mark" aria-hidden="true">
             <span />
             <span />
           </span>
-          ClinicClick
+          patient-information-software-ai
         </a>
         <div className="nav-links">
           <a href="#how-it-works">How it works</a>
@@ -64,7 +64,7 @@ export default function Home() {
             <em>Care stays human.</em>
           </h1>
           <p className="hero-lede">
-            ClinicClick helps care teams complete repetitive patient information
+            Patient Information Software AI helps care teams complete repetitive patient information
             tasks with an AI assistant that previews, verifies, and logs every move.
           </p>
           <div className="hero-actions">
@@ -77,7 +77,7 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="hero-visual" aria-label="ClinicClick workflow preview">
+        <div className="hero-visual" aria-label="Patient Information Software AI workflow preview">
           <div className="visual-label"><span className="pulse" /> Live workflow preview</div>
           <div className="orb orb-one" />
           <div className="orb orb-two" />
@@ -126,7 +126,7 @@ export default function Home() {
       <section className="section shell" id="how-it-works">
         <div className="section-heading">
           <div><span className="kicker">HOW IT WORKS</span><h2>A calmer way to handle repetitive work.</h2></div>
-          <p>ClinicClick keeps the operator in control while the assistant handles the precise, repetitive interactions.</p>
+          <p>Patient Information Software AI keeps the operator in control while the assistant handles the precise, repetitive interactions.</p>
         </div>
         <div className="steps">
           {steps.map((step) => (
@@ -145,7 +145,7 @@ export default function Home() {
           <div>
             <span className="kicker light">SAFETY BY DESIGN</span>
             <h2>Automation that knows its boundaries.</h2>
-            <p>ClinicClick is deliberately narrow. It accepts approved demo jobs, checks each typed value, and stops when an action falls outside the policy.</p>
+            <p>Patient Information Software AI is deliberately narrow. It accepts approved demo jobs, checks each typed value, and stops when an action falls outside the policy.</p>
             <a className="button light-button" href="#demo">Review the demo <ArrowIcon /></a>
           </div>
           <div className="safety-panel">
@@ -162,15 +162,15 @@ export default function Home() {
 
       <section className="demo section shell" id="demo">
         <span className="kicker">START WITH A PREVIEW</span>
-        <h2>See what the assistant would do—before it does anything.</h2>
+        <h2>See what the assistant would do before it does anything.</h2>
         <p>Run the included dry-run test with a clean, synthetic PIS screen.</p>
         <CopyCommand />
       </section>
 
       <footer className="footer shell">
-        <a className="brand" href="#top"><span className="brand-mark"><span /><span /></span>ClinicClick</a>
+        <a className="brand" href="#top"><span className="brand-mark"><span /><span /></span>patient-information-software-ai</a>
         <p>Human-approved automation for patient information workflows.</p>
-        <span>© 2026 ClinicClick</span>
+        <span>© 2026 patient-information-software-ai</span>
       </footer>
     </main>
   );
