@@ -172,7 +172,6 @@ export default function ReviewSession({ params }: { params: Promise<{ id: string
               {entries.map((entry, entryIndex) => (
                 <section className="sub-window entry-card" key={entry.index}>
                   <div className="sub-title">
-                    <span className="step-no">{entryIndex + 1}</span>
                     <span>{entry.photoName}</span>
                     <small>
                       {entry.outcome === "ready"

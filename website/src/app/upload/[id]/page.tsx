@@ -31,6 +31,14 @@ const AGENT_BLURBS: Record<AgentKey, string> = {
   composer: "Prepares the final entry for human review.",
 };
 
+const AGENT_MODELS: Record<AgentKey, string> = {
+  ocr: "GPT-4o Vision",
+  intake: "DeepSeek-V4-Flash · Vultr",
+  records: "DeepSeek-V4-Flash · Vultr",
+  pharmacist: "VultronRetriever-8B · Vultr",
+  composer: "DeepSeek-V4-Flash · Vultr",
+};
+
 const SAMPLE_SCRIPTS = [
   { name: "sample-script-1.jpg", url: "/demo-scripts/script-0207.jpg" },
   { name: "sample-script-2.jpg", url: "/demo-scripts/script-0209.jpg" },
@@ -211,6 +219,7 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
   const [feed, setFeed] = useState<ActivityEvent[]>([]);
   const [phase, setPhase] = useState<"capture" | "processing" | "done">("capture");
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [logsOpen, setLogsOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const eventCounter = useRef(0);
@@ -388,7 +397,6 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
           {phase === "capture" ? (
             <section className="sub-window capture-window">
               <div className="sub-title">
-                <span className="step-no">1</span>
                 <span>Capture scripts</span>
                 <small>{photos.length} photo{photos.length === 1 ? "" : "s"} in this batch</small>
               </div>
@@ -497,13 +505,14 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
             </div>
           )}
 
-          {/* Step 2: crew pipeline (after upload) */}
+          {/* Crew pipeline (after upload) */}
           {phase !== "capture" ? (
             <section className="sub-window pipeline-window">
               <div className="sub-title">
-                <span className="step-no">2</span>
                 <span>Processing crew</span>
                 <small>{running ? "crew is working" : "batch finished"}</small>
+                <span className="spacer" />
+                <small className="crew-track">Vultr Serverless Inference · VultronRetriever grounding</small>
               </div>
               <div className="pipeline-grid">
                 {AGENT_ORDER.map((agent) => (
@@ -516,37 +525,17 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
                       </span>
                     </div>
                     <p>{agentLastMessage(agent)}</p>
+                    <span className="agent-model">{AGENT_MODELS[agent]}</span>
                   </article>
                 ))}
               </div>
             </section>
           ) : null}
 
-          {/* Step 3: live log timeline (after upload) */}
-          {phase !== "capture" ? (
-            <section className="sub-window feed-window">
-              <div className="sub-title">
-                <span className="step-no">3</span>
-                <span>Agent logs</span>
-                <small>{running ? "streaming live" : `${feed.length} events`}</small>
-              </div>
-              <div className="log-timeline" role="log" aria-live="polite">
-                {feed.length === 0 ? (
-                  <p className="feed-idle">Agents are starting up...</p>
-                ) : (
-                  feed.map((event, index) => (
-                    <LogEvent event={event} isLast={index === feed.length - 1} key={event.id} />
-                  ))
-                )}
-              </div>
-            </section>
-          ) : null}
-
-          {/* Step 4: summary */}
+          {/* Batch summary (kept above the logs) */}
           {jobs.length > 0 ? (
             <section className="sub-window summary-window">
               <div className="sub-title">
-                <span className="step-no">4</span>
                 <span>Batch summary</span>
                 <small>click a row for full detail and logs</small>
               </div>
@@ -574,6 +563,34 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
                   </tbody>
                 </table>
               </div>
+            </section>
+          ) : null}
+
+          {/* Agent logs (collapsed by default) */}
+          {phase !== "capture" ? (
+            <section className="sub-window feed-window" data-collapsed={!logsOpen}>
+              <button
+                aria-expanded={logsOpen}
+                className="sub-title sub-title-toggle"
+                onClick={() => setLogsOpen((open) => !open)}
+                type="button"
+              >
+                <span>Agent logs</span>
+                <small>{running ? "streaming live" : `${feed.length} events`}</small>
+                <span className="spacer" />
+                <span className="toggle-caret" aria-hidden="true">{logsOpen ? "▾ hide" : "▸ show"}</span>
+              </button>
+              {logsOpen ? (
+                <div className="log-timeline" role="log" aria-live="polite">
+                  {feed.length === 0 ? (
+                    <p className="feed-idle">Agents are starting up...</p>
+                  ) : (
+                    feed.map((event, index) => (
+                      <LogEvent event={event} isLast={index === feed.length - 1} key={event.id} />
+                    ))
+                  )}
+                </div>
+              ) : null}
             </section>
           ) : null}
         </div>
