@@ -319,6 +319,7 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
   const running = phase === "processing";
   const readyCount = jobs.filter((job) => job.done && job.scenario.outcome === "ready").length;
   const reviewCount = jobs.filter((job) => job.done && job.scenario.outcome === "review").length;
+  const currentEvent = feed[0];
 
   const agentEvents = (agent: AgentKey) => feed.filter((entry) => entry.agent === agent);
   const agentCompletedScripts = (agent: AgentKey) => {
@@ -334,7 +335,8 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
     const events = agentEvents(agent);
     if (events.length === 0) return "idle";
     if (agentCompletedScripts(agent) >= photos.length) return "done";
-    return running ? "active" : "done";
+    if (running && currentEvent?.agent === agent) return "active";
+    return "idle";
   };
 
   const agentStatusLabel = (agent: AgentKey): string => {
@@ -342,7 +344,8 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
     const events = agentEvents(agent);
     if (events.length === 0) return "waiting";
     if (completed >= photos.length) return "completed";
-    return running ? "processing" : "partial";
+    if (running && currentEvent?.agent === agent) return "processing";
+    return completed > 0 ? "in queue" : "waiting";
   };
 
   const agentLastMessage = (agent: AgentKey): string => {
