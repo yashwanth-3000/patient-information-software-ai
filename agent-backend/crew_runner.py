@@ -65,10 +65,14 @@ def run_script_pipeline(ocr_result: Dict[str, Any], emit: Emit) -> Dict[str, Any
             "Normalize this OCR reading of a handwritten doctor's script. "
             "List every plausible patient ID candidate (primary first, then "
             "alternates from ambiguous digits). Clean up medicine lines but keep "
-            "the raw text. Return STRICT JSON only:\n"
-            '{"patient_id_candidates":["27531","27581"],'
-            '"patient_name":"...","medicines":[{"raw_text":"...","dosage":"..."}],'
-            '"amount":150,"date":"YYYY-MM-DD or null","concerns":["..."]}\n\n'
+            "the raw text. If other_text mentions a duration (like 'for 15 days') "
+            "that applies to the whole script, copy it into each medicine's dosage. "
+            "NEVER invent values that are not in the OCR: missing fields stay null "
+            "or empty. Return STRICT JSON only:\n"
+            '{"patient_id_candidates":["<id>", "<alternate id>"],'
+            '"patient_name":"<name or null>",'
+            '"medicines":[{"raw_text":"<as written>","dosage":"<as written or empty>"}],'
+            '"amount":<number or null>,"date":"YYYY-MM-DD or null","concerns":["..."]}\n\n'
             f"OCR reading:\n{json.dumps(ocr_result, ensure_ascii=True)}"
         ),
         expected_output="Strict JSON with patient_id_candidates, patient_name, "
@@ -116,9 +120,11 @@ def run_script_pipeline(ocr_result: Dict[str, Any], emit: Emit) -> Dict[str, Any
             f"  id candidates: {json.dumps(candidates)}\n\n"
             "Live PIS lookups already performed (real records from the clinic database):\n"
             f"{json.dumps(lookups, ensure_ascii=True)}\n\n"
-            "Decide the identity match. If no lookup matches but another candidate ID "
-            "was NOT yet tried, you may request it via retry_regno. Return STRICT JSON:\n"
-            '{"decision":"matched|mismatch|not_found","matched_regno":"27531 or null",'
+            "Decide the identity match. When the script has no patient name, a found "
+            "PIS record for the primary candidate counts as matched (the RegNo is the "
+            "identity). If no lookup matches but another candidate ID was NOT yet "
+            "tried, you may request it via retry_regno. Return STRICT JSON:\n"
+            '{"decision":"matched|mismatch|not_found","matched_regno":"<regno> or null",'
             '"pis_name":"name from PIS or null","name_match_score":0.0,'
             '"retry_regno":null,"reasoning":"one sentence"}'
         ),
@@ -182,9 +188,13 @@ def run_script_pipeline(ocr_result: Dict[str, Any], emit: Emit) -> Dict[str, Any
             "For each medicine line, pick the canonical remedy from the corpus matches "
             "(or mark it unrecognized), extract the potency (like 30C, 200C, 1M, Q, 6X) "
             "from the raw text, validate the potency against the remedy's common "
-            "potencies, and keep the dosage. Return STRICT JSON only:\n"
-            '{"items":[{"raw_text":"...","remedy":"Arsenicum Album","potency":"30C",'
-            '"potency_valid":true,"dosage":"...","confidence":0.0,'
+            "potencies, and keep the dosage exactly as given (empty stays empty). "
+            "'SL' / '8L' / 'S.L.' is Sac Lac placebo: canonical remedy 'Sac Lac', no "
+            "potency, not a flag-worthy problem. Include EVERY input line in items, "
+            "in order. Return STRICT JSON only:\n"
+            '{"items":[{"raw_text":"<as given>","remedy":"<canonical name or null>",'
+            '"potency":"<potency or null>","potency_valid":true,'
+            '"dosage":"<as given>","confidence":0.0,'
             '"citation":"corpus line used","flags":["..."]}]}\n\n'
             f"Medicine lines with corpus evidence:\n{json.dumps(grounded, ensure_ascii=True)}"
         ),
@@ -210,12 +220,18 @@ def run_script_pipeline(ocr_result: Dict[str, Any], emit: Emit) -> Dict[str, Any
             "Compose the final entry form. ready_for_entry is true ONLY when identity "
             "is matched and no medicine is unrecognized. regno MUST be the matched_regno "
             "from the identity decision when matched, otherwise the first patient ID "
-            "candidate from intake (never invent one). Return STRICT JSON only:\n"
+            "candidate from intake (never invent one).\n"
+            "CRITICAL: copy every value from the evidence below. NEVER fabricate or "
+            "'infer from common practice' a dosage, amount, date or any other value. "
+            "If a value is missing in the evidence it must be null (and, if it "
+            "matters, listed in review_reasons). Include one prescriptions entry for "
+            "EVERY pharmacy item, including Sac Lac placebo lines. Return STRICT JSON only:\n"
             '{"regno":"<regno>","patient_name":"from PIS if matched else from script",'
-            '"identity":{"status":"matched|mismatch|not_found","pis_name":"...",'
-            '"score":0.0},"prescriptions":[{"text":"Arsenicum Album 30C - 3-3-3 x 1 week",'
-            '"remedy":"...","potency":"...","dosage":"...","confidence":0.0,'
-            '"citation":"..."}],"amount":150,"date":"YYYY-MM-DD or null",'
+            '"identity":{"status":"matched|mismatch|not_found","pis_name":"<name or null>",'
+            '"score":0.0},"prescriptions":[{"text":"<remedy potency - dosage, from evidence>",'
+            '"remedy":"<canonical or null>","potency":"<or null>","dosage":"<or null>",'
+            '"confidence":0.0,"citation":"<corpus citation>"}],'
+            '"amount":<number or null>,"date":"YYYY-MM-DD or null",'
             '"ready_for_entry":true,"review_reasons":["..."],"summary":"one sentence"}\n\n'
             f"Intake: {json.dumps(intake_data, ensure_ascii=True)}\n"
             f"Identity decision: {json.dumps(records_decision, ensure_ascii=True)}\n"

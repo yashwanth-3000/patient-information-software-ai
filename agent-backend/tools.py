@@ -50,6 +50,9 @@ The script normally contains:
 - A patient registration number (RegNo / ID number, usually 1-6 digits)
 - The patient's name
 - One or more homeopathic medicines, often abbreviated (e.g. "Ars Alb 30", "Nux Vom 200", "Rhus Tox 1M", "SBL drops"), sometimes with dosage instructions (e.g. "3-3-3", "BD", "TDS", "1 week")
+- "SL" (often looks like "8L" or "S.L.") means Sac Lac placebo pills and is very common - prefer reading it as "SL"
+- A complaint line like "c/o Skin Rash" ("c/o" = complains of)
+- A duration like "for 15 days" that applies to the whole prescription
 - An amount of money to be paid (in rupees, e.g. "150/-", "Rs 200")
 - Possibly a date
 
@@ -69,11 +72,35 @@ Return STRICT JSON only, no markdown fences:
 }"""
 
 
+def _shrink_for_ocr(image_bytes: bytes, mime_type: str) -> tuple:
+    """Downscale huge phone photos to a fast, OCR-friendly JPEG.
+
+    A 4000px 6MB PNG becomes ~8.7MB of base64; that slows upload and adds
+    nothing for handwriting recognition. ~2000px JPEG is plenty.
+    """
+    try:
+        import io
+
+        from PIL import Image, ImageOps
+
+        image = Image.open(io.BytesIO(image_bytes))
+        image = ImageOps.exif_transpose(image)
+        image.thumbnail((2000, 2000))
+        if image.mode not in ("RGB", "L"):
+            image = image.convert("RGB")
+        buffer = io.BytesIO()
+        image.save(buffer, format="JPEG", quality=88)
+        return buffer.getvalue(), "image/jpeg"
+    except Exception:
+        return image_bytes, mime_type
+
+
 def run_ocr(image_bytes: bytes, mime_type: str) -> Dict[str, Any]:
     """Read the script image with OpenAI vision and return structured JSON."""
     from openai import OpenAI
 
-    client = OpenAI()
+    client = OpenAI(timeout=120.0)
+    image_bytes, mime_type = _shrink_for_ocr(image_bytes, mime_type)
     encoded = base64.b64encode(image_bytes).decode("ascii")
     response = client.chat.completions.create(
         model=OCR_MODEL,

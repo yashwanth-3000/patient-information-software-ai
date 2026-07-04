@@ -5,3 +5,4 @@ python-multipart>=0.0.9
 openai>=1.50
 requests>=2.32
 python-dotenv>=1.0
+pillow>=10.0

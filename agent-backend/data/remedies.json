@@ -39,6 +39,7 @@
   {"name": "Ferrum Phosphoricum", "abbreviations": ["Ferrum Phos", "Fer Phos", "FP"], "common_potencies": ["6X", "6C", "30C"], "forms": ["tablets", "pills"], "notes": "First stage of inflammation and fever without marked characteristic symptoms."},
   {"name": "Kali Muriaticum", "abbreviations": ["Kali Mur", "KM"], "common_potencies": ["6X", "6C", "30C"], "forms": ["tablets", "pills"], "notes": "Second stage of inflammation, white discharges, eustachian tube blockage."},
   {"name": "Natrum Phosphoricum", "abbreviations": ["Nat Phos", "NP"], "common_potencies": ["6X", "6C", "30C"], "forms": ["tablets"], "notes": "Acidity, sour eructations, golden-yellow coated tongue, worms in children."},
+  {"name": "Natrum Sulphuricum", "abbreviations": ["Nat Sulph", "Nat Sul", "Natrum Sulf", "Nitrum Sulf (misread)"], "common_potencies": ["6X", "6C", "30C", "200C"], "forms": ["tablets", "pills"], "notes": "Biochemic liver salt. Hepatic complaints, asthma worse in damp weather, head injury sequelae."},
   {"name": "Calcarea Phosphorica", "abbreviations": ["Calc Phos", "CP"], "common_potencies": ["6X", "6C", "30C", "200C"], "forms": ["tablets", "pills"], "notes": "Delayed dentition and walking, growing pains, desires smoked food."},
   {"name": "Carbo Vegetabilis", "abbreviations": ["Carbo Veg", "Carb V", "CV"], "common_potencies": ["6C", "30C", "200C"], "forms": ["pills"], "notes": "Flatulent distension, air hunger, wants to be fanned, collapse states."},
   {"name": "China Officinalis", "abbreviations": ["China", "Chin", "Cinchona"], "common_potencies": ["6C", "30C", "200C"], "forms": ["pills", "Q"], "notes": "Debility from loss of fluids, periodic fevers, painless bloating."},
@@ -58,5 +59,6 @@
   {"name": "Passiflora Incarnata", "abbreviations": ["Passi", "Passiflora"], "common_potencies": ["Q", "6C", "30C"], "forms": ["Q", "drops"], "notes": "Sleeplessness, restlessness, used in mother tincture for insomnia."},
   {"name": "Avena Sativa", "abbreviations": ["Avena", "Av Sat"], "common_potencies": ["Q", "6C"], "forms": ["Q", "drops"], "notes": "Nerve tonic in mother tincture, debility after illness, sleeplessness."},
   {"name": "Alfalfa", "abbreviations": ["Alf"], "common_potencies": ["Q", "6C"], "forms": ["Q", "drops"], "notes": "General tonic in mother tincture, improves appetite and weight."},
-  {"name": "Syzygium Jambolanum", "abbreviations": ["Syzygium", "Syzyg"], "common_potencies": ["Q", "6C", "30C"], "forms": ["Q", "drops"], "notes": "Used in mother tincture for blood sugar management support."}
+  {"name": "Syzygium Jambolanum", "abbreviations": ["Syzygium", "Syzyg"], "common_potencies": ["Q", "6C", "30C"], "forms": ["Q", "drops"], "notes": "Used in mother tincture for blood sugar management support."},
+  {"name": "Sac Lac", "abbreviations": ["SL", "S.L.", "Sac. Lac.", "Saccharum Lactis", "8L (misread of SL)"], "common_potencies": [], "forms": ["pills", "powder"], "notes": "Placebo pills of milk sugar with no active remedy. Doctors write SL for follow-up doses between active remedies. No potency applies."}
 ]
