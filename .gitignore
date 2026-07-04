@@ -12,3 +12,5 @@ ClinicClickImport/
 ClinicClickBackups/
 .DS_Store
 dad-handwriten-notes/
+website/.playwright-cli/
+website/output/

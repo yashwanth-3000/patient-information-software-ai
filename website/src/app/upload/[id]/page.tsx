@@ -678,8 +678,8 @@ function JobRow({ job, index, expanded, onToggle }: {
             </span>
           </span>
         </td>
-        <td>{started ? `${job.scenario.patient.name} (${job.scenario.patient.regno})` : "-"}</td>
-        <td>{started ? job.scenario.prescription : "-"}</td>
+        <td>{started ? `${job.scenario.patient.name} (${job.scenario.patient.regno})` : <span className="pending-dash">-</span>}</td>
+        <td>{started ? job.scenario.prescription : <span className="pending-dash">-</span>}</td>
         <td>
           <span className="stage-chip" data-tone={job.stageTone}><i />{job.stage}</span>
         </td>

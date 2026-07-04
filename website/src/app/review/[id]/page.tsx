@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -63,13 +63,25 @@ const FALLBACK_ENTRIES: ReviewEntry[] = [
   },
 ];
 
-type EditableEntry = ReviewEntry & { approved: boolean };
+type Decision = "approved" | "skipped";
+
+type EditableEntry = ReviewEntry;
+
+const SWIPE_THRESHOLD = 90;
 
 export default function ReviewSession({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const [entries, setEntries] = useState<EditableEntry[] | null>(null);
+  const [decisions, setDecisions] = useState<Record<number, Decision>>({});
+  const [deckIndex, setDeckIndex] = useState(0);
+  const [editing, setEditing] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [drag, setDrag] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const [flyOut, setFlyOut] = useState<Decision | null>(null);
+  const dragStart = useRef<{ x: number; y: number } | null>(null);
+  const flyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     // setTimeout instead of requestAnimationFrame: rAF never fires in a
@@ -88,11 +100,12 @@ export default function ReviewSession({ params }: { params: Promise<{ id: string
       setEntries(loaded.map((entry) => ({
         ...entry,
         photoUrl: entry.photoUrl || "/demo-scripts/script-0207.jpg",
-        approved: entry.outcome === "ready",
       })));
     });
     return () => clearTimeout(frame);
   }, [id]);
+
+  useEffect(() => () => { if (flyTimer.current) clearTimeout(flyTimer.current); }, []);
 
   const updateEntry = (index: number, patch: Partial<EditableEntry>) => {
     setEntries((current) => current
@@ -100,9 +113,88 @@ export default function ReviewSession({ params }: { params: Promise<{ id: string
       : current);
   };
 
+  const decide = useCallback((decision: Decision) => {
+    if (!entries || deckIndex >= entries.length || flyOut) return;
+    setEditing(false);
+    setFlyOut(decision);
+    flyTimer.current = setTimeout(() => {
+      setDecisions((current) => ({ ...current, [deckIndex]: decision }));
+      setDeckIndex((current) => current + 1);
+      setFlyOut(null);
+      setDrag({ x: 0, y: 0 });
+    }, 320);
+  }, [entries, deckIndex, flyOut]);
 
-  const approvedCount = entries?.filter((entry) => entry.approved).length ?? 0;
+  const undo = () => {
+    if (deckIndex === 0 || flyOut) return;
+    setEditing(false);
+    const prev = deckIndex - 1;
+    setDecisions((current) => {
+      const next = { ...current };
+      delete next[prev];
+      return next;
+    });
+    setDeckIndex(prev);
+    setDrag({ x: 0, y: 0 });
+  };
+
+  /* Pointer-based swipe */
+  const onPointerDown = (event: React.PointerEvent) => {
+    if (editing || flyOut) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("button, input, textarea, a")) return;
+    dragStart.current = { x: event.clientX, y: event.clientY };
+    setDragging(true);
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  };
+  const onPointerMove = (event: React.PointerEvent) => {
+    if (!dragStart.current) return;
+    setDrag({ x: event.clientX - dragStart.current.x, y: event.clientY - dragStart.current.y });
+  };
+  const onPointerUp = () => {
+    if (!dragStart.current) return;
+    dragStart.current = null;
+    setDragging(false);
+    if (drag.x > SWIPE_THRESHOLD) decide("approved");
+    else if (drag.x < -SWIPE_THRESHOLD) decide("skipped");
+    else setDrag({ x: 0, y: 0 });
+  };
+
+  const total = entries?.length ?? 0;
+  const finished = entries !== null && deckIndex >= total;
+  const approvedCount = Object.values(decisions).filter((d) => d === "approved").length;
+  const skippedCount = Object.values(decisions).filter((d) => d === "skipped").length;
   const approvedEntryLabel = approvedCount === 1 ? "entry" : "entries";
+
+  const dragRotation = Math.max(-14, Math.min(14, drag.x / 14));
+  const dragOpacity = Math.min(1, Math.abs(drag.x) / SWIPE_THRESHOLD);
+  const dragDirection = drag.x > 24 ? "approved" : drag.x < -24 ? "skipped" : null;
+
+  const cardStyle = (offset: number): React.CSSProperties => {
+    if (offset === 0) {
+      if (flyOut) {
+        return {
+          transform: `translate(${flyOut === "approved" ? 620 : -620}px, ${drag.y + 40}px) rotate(${flyOut === "approved" ? 24 : -24}deg)`,
+          opacity: 0,
+          transition: "transform .32s cubic-bezier(.5,.4,.6,1), opacity .3s ease",
+        };
+      }
+      return {
+        transform: `translate(${drag.x}px, ${drag.y * 0.4}px) rotate(${dragRotation}deg)`,
+        transition: dragging ? "none" : "transform .28s cubic-bezier(.2,.9,.3,1.15)",
+      };
+    }
+    const scale = 1 - offset * 0.045;
+    const y = offset * 13;
+    return { transform: `translateY(${y}px) scale(${scale})`, transition: "transform .3s ease" };
+  };
+
+  const toggleDecision = (index: number) => {
+    setDecisions((current) => ({
+      ...current,
+      [index]: current[index] === "approved" ? "skipped" : "approved",
+    }));
+  };
 
   return (
     <main className="desktop aero-desktop">
@@ -135,7 +227,7 @@ export default function ReviewSession({ params }: { params: Promise<{ id: string
               <Link href="/upload">Sessions</Link> &rsaquo; <Link href={`/upload/${id}`}>#{id}</Link> &rsaquo; <code>Review</code>
             </span>
             <span className="session-badge">
-              {submitted ? "SUBMITTED" : entries ? `${approvedCount}/${entries.length} APPROVED` : "LOADING"}
+              {submitted ? "SUBMITTED" : entries ? (finished ? `${approvedCount}/${total} APPROVED` : `CARD ${deckIndex + 1}/${total}`) : "LOADING"}
             </span>
           </div>
 
@@ -157,107 +249,193 @@ export default function ReviewSession({ params }: { params: Promise<{ id: string
             </div>
           ) : !entries ? (
             <div className="sub-window"><p className="feed-idle">Loading batch...</p></div>
+          ) : !finished ? (
+            <>
+              <div className="deck-help">
+                <span className="deck-help-item" data-kind="skip"><i>←</i> swipe left to skip</span>
+                <span className="deck-help-item" data-kind="edit">tap card to edit</span>
+                <span className="deck-help-item" data-kind="approve">swipe right to approve <i>→</i></span>
+              </div>
+
+              <div className="deck-stage">
+                {entries.slice(deckIndex, deckIndex + 3).map((entry, offset) => {
+                  const entryIndex = deckIndex + offset;
+                  const isTop = offset === 0;
+                  return (
+                    <article
+                      className={`deck-card${isTop ? " top" : ""}`}
+                      data-outcome={entry.outcome}
+                      key={`${entry.index}-${entry.photoName}`}
+                      onPointerCancel={isTop ? onPointerUp : undefined}
+                      onPointerDown={isTop ? onPointerDown : undefined}
+                      onPointerMove={isTop ? onPointerMove : undefined}
+                      onPointerUp={isTop ? onPointerUp : undefined}
+                      style={{ ...cardStyle(offset), zIndex: 10 - offset }}
+                    >
+                      {isTop ? (
+                        <>
+                          <span className="deck-stamp approve" style={{ opacity: dragDirection === "approved" ? dragOpacity : flyOut === "approved" ? 1 : 0 }}>APPROVE</span>
+                          <span className="deck-stamp skip" style={{ opacity: dragDirection === "skipped" ? dragOpacity : flyOut === "skipped" ? 1 : 0 }}>SKIP</span>
+                        </>
+                      ) : null}
+
+                      <div className="deck-card-head">
+                        <span className="deck-card-no">#{entryIndex + 1}</span>
+                        <b>{entry.patientName || "Unknown patient"}</b>
+                        {entry.outcome === "ready"
+                          ? <span className="stage-chip" data-tone="ok"><i />READY</span>
+                          : <span className="stage-chip" data-tone="warn"><i />CHECK</span>}
+                      </div>
+
+                      <figure className="deck-photo">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img alt={entry.photoName} src={entry.photoUrl} draggable={false} />
+                      </figure>
+                      <div className="deck-facts">
+                        <span><small>REGNO</small><b>{entry.regno || "?"}</b></span>
+                        <span><small>AGE / SEX</small><b>{entry.age || "?"} / {entry.gender || "?"}</b></span>
+                        <span><small>CONFIDENCE</small><b>{(entry.prescriptionConfidence * 100).toFixed(0)}%</b></span>
+                      </div>
+                      <p className="deck-rx">{entry.prescription}</p>
+                      {entry.reviewReasons.length > 0 ? (
+                        <p className="deck-flag">⚠ {entry.reviewReasons.join(" ")}</p>
+                      ) : null}
+                      {isTop ? (
+                        <button className="deck-edit-hint" onClick={() => setEditing(true)} type="button">
+                          ✎ Tap to edit this entry
+                        </button>
+                      ) : null}
+                    </article>
+                  );
+                })}
+              </div>
+
+              <div className="deck-actions">
+                <button aria-label="Skip this entry" className="deck-button skip" disabled={!!flyOut} onClick={() => decide("skipped")} type="button">✕</button>
+                <button aria-label="Undo last decision" className="deck-button undo" disabled={deckIndex === 0 || !!flyOut} onClick={undo} type="button">↺</button>
+                <button aria-label="Edit this entry" className="deck-button edit" disabled={!!flyOut} onClick={() => setEditing((open) => !open)} type="button">✎</button>
+                <button aria-label="Approve this entry" className="deck-button approve" disabled={!!flyOut} onClick={() => decide("approved")} type="button">✓</button>
+              </div>
+
+              <div className="deck-progress">
+                {entries.map((entry, index) => (
+                  <i
+                    data-state={index < deckIndex ? decisions[index] : index === deckIndex ? "current" : "waiting"}
+                    key={`${entry.index}-dot`}
+                  />
+                ))}
+              </div>
+
+              {editing && entries[deckIndex] ? (
+                <div className="deck-modal-backdrop" onClick={() => setEditing(false)}>
+                  <div
+                    aria-label={`Edit entry ${deckIndex + 1}`}
+                    className="deck-modal"
+                    onClick={(event) => event.stopPropagation()}
+                    role="dialog"
+                  >
+                    <div className="window-titlebar deck-modal-title">
+                      <span className="window-app-icon">✎</span>
+                      <span>Edit Entry #{deckIndex + 1} · {entries[deckIndex].patientName || "Unknown patient"}</span>
+                      <div className="window-controls">
+                        <button aria-label="Close editor" className="close" onClick={() => setEditing(false)} type="button">×</button>
+                      </div>
+                    </div>
+
+                    <div className="deck-modal-body">
+                      <figure className="deck-edit-photo">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img alt={entries[deckIndex].photoName} src={entries[deckIndex].photoUrl} draggable={false} />
+                        <figcaption>original script</figcaption>
+                      </figure>
+
+                      <div className="deck-edit-grid">
+                        <div className="deck-edit-field">
+                          <label htmlFor={`regno-${deckIndex}`}>REGNO</label>
+                          <input
+                            id={`regno-${deckIndex}`}
+                            inputMode="numeric"
+                            onChange={(event) => updateEntry(deckIndex, { regno: event.target.value })}
+                            value={entries[deckIndex].regno}
+                          />
+                        </div>
+                        <div className="deck-edit-field">
+                          <label>PATIENT</label>
+                          <input readOnly value={`${entries[deckIndex].patientName || "?"} · ${entries[deckIndex].age || "?"}/${entries[deckIndex].gender || "?"}`} />
+                        </div>
+                      </div>
+
+                      <div className="deck-edit-field">
+                        <label htmlFor={`rx-${deckIndex}`}>PRESCRIPTION</label>
+                        <textarea
+                          id={`rx-${deckIndex}`}
+                          onChange={(event) => updateEntry(deckIndex, { prescription: event.target.value })}
+                          rows={4}
+                          value={entries[deckIndex].prescription}
+                        />
+                        <small>Medicines separated by &quot;//&quot;, days and amount at the end. Full remedy names, no short forms.</small>
+                      </div>
+
+                      {entries[deckIndex].reviewReasons.length > 0 ? (
+                        <p className="deck-flag">⚠ {entries[deckIndex].reviewReasons.join(" ")}</p>
+                      ) : null}
+                    </div>
+
+                    <div className="deck-modal-foot">
+                      <button className="retro-button" onClick={() => setEditing(false)} type="button">Cancel</button>
+                      <button className="retro-button primary-button deck-edit-done" onClick={() => setEditing(false)} type="button">
+                        ✓ Save changes
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </>
           ) : (
             <>
               <div className="review-banner">
                 <div>
-                  <b>Check each entry before it reaches the clinic.</b>
+                  <b>All {total} cards reviewed.</b>
                   <br />
                   <small>
-                    Fields are editable. Entries flagged by the crew need your correction
-                    or explicit approval; nothing is written to PIS without a tick.
+                    {approvedCount} approved, {skippedCount} skipped. Tap an entry to flip
+                    its decision, or undo to go back through the deck.
                   </small>
                 </div>
                 <span className="spacer" />
-                <span className="stage-chip" data-tone={approvedCount === entries.length ? "ok" : "warn"}>
-                  <i />{approvedCount}/{entries.length} APPROVED
+                <span className="stage-chip" data-tone={approvedCount > 0 ? "ok" : "warn"}>
+                  <i />{approvedCount}/{total} APPROVED
                 </span>
               </div>
 
-              {entries.map((entry, entryIndex) => (
-                <section className="sub-window entry-card" key={entry.index}>
-                  <div className="sub-title">
-                    <span>{entry.photoName}</span>
-                    <small>
-                      {entry.outcome === "ready"
-                        ? <span className="stage-chip" data-tone="ok"><i />AGENTS: READY</span>
-                        : <span className="stage-chip" data-tone="warn"><i />AGENTS: NEEDS REVIEW</span>}
-                    </small>
-                  </div>
-
-                  <div className="entry-grid">
-                    <figure className="entry-photo">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img alt={entry.photoName} src={entry.photoUrl} />
-                      <figcaption>Original script photo</figcaption>
-                    </figure>
-
-                    <div className="entry-fields">
-                      <div className="field-row">
-                        <label htmlFor={`regno-${entryIndex}`}>RegNo</label>
-                        <input
-                          id={`regno-${entryIndex}`}
-                          onChange={(event) => updateEntry(entryIndex, { regno: event.target.value })}
-                          value={entry.regno}
-                        />
-                      </div>
-                      <div className="field-row">
-                        <label htmlFor={`name-${entryIndex}`}>Patient name</label>
-                        <input id={`name-${entryIndex}`} readOnly value={entry.patientName} />
-                      </div>
-                      <div className="field-row" style={{ alignItems: "start" }}>
-                        <label htmlFor={`rx-${entryIndex}`} style={{ paddingTop: 8 }}>Prescription</label>
-                        <div className="rx-list">
-                          <div className="rx-row" data-flagged={entry.prescriptionConfidence < 0.6}>
-                            <textarea
-                              id={`rx-${entryIndex}`}
-                              onChange={(event) => updateEntry(entryIndex, { prescription: event.target.value })}
-                              rows={2}
-                              value={entry.prescription}
-                            />
-                            <span className="rx-conf">
-                              {entry.prescriptionConfidence < 0.6 ? "⚠ " : ""}confidence {(entry.prescriptionConfidence * 100).toFixed(0)}%
-                            </span>
-                          </div>
-                          <small className="rx-hint">
-                            One entry per script: medicines separated by &quot;//&quot;, days and amount at the end.
-                          </small>
-                          <ul className="rx-medicines">
-                            {entry.medicines.map((medicine, medicineIndex) => (
-                              <li data-flagged={medicine.confidence < 0.6} key={`${medicine.text}-${medicineIndex}`}>
-                                <span>{medicine.text}</span>
-                                <small>{(medicine.confidence * 100).toFixed(0)}%</small>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="entry-foot">
-                    <label className="approve-check">
-                      <input
-                        checked={entry.approved}
-                        onChange={(event) => updateEntry(entryIndex, { approved: event.target.checked })}
-                        type="checkbox"
-                      />
-                      Approve this entry for PIS import
-                    </label>
-                    <span className="spacer" />
-                    {entry.reviewReasons.length > 0 ? (
-                      <span className="review-note">⚠ {entry.reviewReasons.join(" ")}</span>
-                    ) : null}
-                  </div>
-                </section>
-              ))}
+              <div className="deck-summary">
+                {entries.map((entry, index) => (
+                  <button
+                    className="deck-summary-row"
+                    data-decision={decisions[index]}
+                    key={`${entry.index}-summary`}
+                    onClick={() => toggleDecision(index)}
+                    type="button"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img alt={entry.photoName} src={entry.photoUrl} />
+                    <span className="deck-summary-main">
+                      <b>{entry.patientName || "Unknown patient"} ({entry.regno || "?"})</b>
+                      <small>{entry.prescription}</small>
+                    </span>
+                    {decisions[index] === "approved"
+                      ? <span className="stage-chip" data-tone="ok"><i />APPROVED</span>
+                      : <span className="stage-chip" data-tone="wait"><i />SKIPPED</span>}
+                  </button>
+                ))}
+              </div>
 
               <div className="review-submit-bar">
                 <b style={{ fontSize: 12.5, color: "#123b5c" }}>
-                  {approvedCount} of {entries.length} entries approved
+                  {approvedCount} of {total} entries approved
                 </b>
                 <span className="spacer" />
-                <Link className="retro-button" href={`/upload/${id}`}>Back to agents</Link>
+                <button className="retro-button" onClick={undo} type="button">↺ Back to deck</button>
                 <button
                   className="retro-button primary-button run-button"
                   disabled={approvedCount === 0}
