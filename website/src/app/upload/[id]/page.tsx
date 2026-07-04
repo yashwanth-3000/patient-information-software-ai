@@ -319,7 +319,6 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
   const running = phase === "processing";
   const readyCount = jobs.filter((job) => job.done && job.scenario.outcome === "ready").length;
   const reviewCount = jobs.filter((job) => job.done && job.scenario.outcome === "review").length;
-  const totalAgentSteps = Math.max(1, AGENT_ORDER.length * Math.max(1, photos.length));
 
   const agentEvents = (agent: AgentKey) => feed.filter((entry) => entry.agent === agent);
   const agentCompletedScripts = (agent: AgentKey) => {
@@ -350,13 +349,6 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
     const event = feed.find((entry) => entry.agent === agent);
     return event ? event.message : AGENT_BLURBS[agent];
   };
-
-  const agentEventCount = (agent: AgentKey): number => agentEvents(agent).length;
-  const completedAgentSteps = AGENT_ORDER.reduce(
-    (total, agent) => total + agentCompletedScripts(agent),
-    0,
-  );
-  const batchProgress = Math.round((completedAgentSteps / totalAgentSteps) * 100);
 
   return (
     <main className="desktop aero-desktop">
@@ -508,39 +500,21 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
               <div className="sub-title">
                 <span className="step-no">2</span>
                 <span>Processing crew</span>
-                <small>
-                  <span className="crew-count">{completedAgentSteps}/{totalAgentSteps} checks complete</span>
-                </small>
+                <small>{running ? "crew is working" : "batch finished"}</small>
               </div>
-              <div className="agent-monitor">
-                <div className="agent-monitor-top">
-                  <div>
-                    <b>{running ? "Crew is processing uploaded scripts" : "Crew finished processing"}</b>
-                    <span>{photos.length} script{photos.length === 1 ? "" : "s"} · {feed.length} live log events</span>
-                  </div>
-                  <div className="monitor-progress">
-                    <i style={{ width: `${batchProgress}%`, animationPlayState: running ? "running" : "paused" }} />
-                  </div>
-                </div>
-                <div className="agent-monitor-list">
-                  {AGENT_ORDER.map((agent, index) => (
-                    <article className="agent-monitor-row" data-state={agentState(agent)} key={agent}>
-                      <span className="monitor-step">{index + 1}</span>
+              <div className="pipeline-grid">
+                {AGENT_ORDER.map((agent) => (
+                  <article className="agent-card" data-state={agentState(agent)} key={agent}>
+                    <div className="agent-head">
                       <span className="agent-led" />
-                      <div className="monitor-main">
-                        <div className="monitor-title">
-                          <b>{AGENT_LABELS[agent]}</b>
-                          <small>{agentStatusLabel(agent)}</small>
-                        </div>
-                        <p>{agentLastMessage(agent)}</p>
-                      </div>
-                      <div className="monitor-metrics">
-                        <span>{agentCompletedScripts(agent)}/{photos.length} scripts</span>
-                        <small>{agentEventCount(agent)} events</small>
-                      </div>
-                    </article>
-                  ))}
-                </div>
+                      <span>
+                        <b>{AGENT_LABELS[agent]}</b>
+                        <small className="agent-status">{agentStatusLabel(agent)}</small>
+                      </span>
+                    </div>
+                    <p>{agentLastMessage(agent)}</p>
+                  </article>
+                ))}
               </div>
             </section>
           ) : null}
@@ -577,11 +551,10 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
                 <table className="summary-table">
                   <thead>
                     <tr>
-                      <th style={{ width: 170 }}>Script photo</th>
-                      <th style={{ width: 200 }}>Patient</th>
+                      <th style={{ width: 190 }}>Script photo</th>
+                      <th style={{ width: 230 }}>Patient</th>
                       <th>Prescription</th>
-                      <th style={{ width: 150 }}>Agent stage</th>
-                      <th style={{ width: 132 }}>Progress</th>
+                      <th style={{ width: 165 }}>Agent stage</th>
                       <th style={{ width: 108 }}>Status</th>
                     </tr>
                   </thead>
@@ -669,16 +642,16 @@ function JobRow({ job, index, expanded, onToggle }: {
           <span className="summary-photo">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img alt={job.photo.name} src={job.photo.url} />
-            <span>#{index + 1} {job.photo.name}</span>
+            <span>
+              <b>Script #{index + 1}</b>
+              <small>{job.photo.name}</small>
+            </span>
           </span>
         </td>
         <td>{started ? `${job.scenario.patient.name} (${job.scenario.patient.regno})` : "-"}</td>
         <td>{started ? job.scenario.prescriptions.map((p) => p.text).join("; ") : "-"}</td>
         <td>
           <span className="stage-chip" data-tone={job.stageTone}><i />{job.stage}</span>
-        </td>
-        <td>
-          <div className="mini-progress"><i style={{ width: `${job.progress}%`, animationPlayState: job.done ? "paused" : "running" }} /></div>
         </td>
         <td>
           {job.done
@@ -692,7 +665,7 @@ function JobRow({ job, index, expanded, onToggle }: {
       </tr>
       {expanded ? (
         <tr className="expanded">
-          <td colSpan={6}>
+          <td colSpan={5}>
             <div className="job-detail">
               <div className="job-detail-grid">
                 <div className="detail-card">
