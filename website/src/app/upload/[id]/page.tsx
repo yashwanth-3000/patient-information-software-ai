@@ -55,8 +55,12 @@ type DemoStep = {
 
 type DemoScenario = {
   patient: { regno: string; name: string; age: string; gender: string };
-  prescriptions: { text: string; confidence: number }[];
-  amount: string;
+  /* One prescription per script, written the way the PIS stores it:
+     medicines separated by "//", days and amount at the end, full remedy
+     names (no short forms). */
+  prescription: string;
+  prescriptionConfidence: number;
+  medicines: { text: string; confidence: number }[];
   outcome: "ready" | "review";
   reviewReasons: string[];
   steps: DemoStep[];
@@ -65,12 +69,13 @@ type DemoScenario = {
 const DEMO_SCENARIOS: DemoScenario[] = [
   {
     patient: { regno: "258", name: "NAGENDER D. CONDUCTER", age: "46", gender: "M" },
-    prescriptions: [
-      { text: "Arsenicum Album 30C", confidence: 0.96 },
-      { text: "Sac Lac (placebo)", confidence: 0.99 },
-      { text: "Sac Lac (placebo)", confidence: 0.99 },
+    prescription: "40 size Arsenicum Album 30 tid // Sac Lac // Sac Lac // 15 days 300",
+    prescriptionConfidence: 0.96,
+    medicines: [
+      { text: "Arsenicum Album 30", confidence: 0.96 },
+      { text: "Sac Lac", confidence: 0.99 },
+      { text: "Sac Lac", confidence: 0.99 },
     ],
-    amount: "-",
     outcome: "ready",
     reviewReasons: [],
     steps: [
@@ -85,17 +90,18 @@ const DEMO_SCENARIOS: DemoScenario[] = [
       { agent: "pharmacist", status: "progress", message: "\"Ars Alb 30\" matched to Arsenicum Album 30C (score 3.67).", delay: 1300 },
       { agent: "pharmacist", status: "completed", message: "3 medicines canonicalized, 0 flagged.", delay: 1200 },
       { agent: "composer", status: "started", message: "Composing the final entry with confidences and citations.", delay: 600 },
-      { agent: "composer", status: "completed", message: "Entry ready for review: RegNo 258, 3 prescriptions.", delay: 1700 },
+      { agent: "composer", status: "completed", message: "Entry ready for review: RegNo 258, one prescription with 3 medicines.", delay: 1700 },
     ],
   },
   {
     patient: { regno: "315", name: "VIJAYA ALAGANDULA", age: "38", gender: "F" },
-    prescriptions: [
-      { text: "Silicea 30C - for 15 days", confidence: 0.93 },
+    prescription: "40 size Silicea 30 // Murostin 28 (unrecognized) // Natrum Sulphuricum 6 // 15 days",
+    prescriptionConfidence: 0.31,
+    medicines: [
+      { text: "Silicea 30", confidence: 0.93 },
       { text: "Murostin 28 (unrecognized)", confidence: 0.31 },
-      { text: "Natrum Sulph 6C - for 15 days", confidence: 0.88 },
+      { text: "Natrum Sulphuricum 6", confidence: 0.88 },
     ],
-    amount: "-",
     outcome: "review",
     reviewReasons: ["\"Murostin 28\" is not in the remedy corpus.", "Amount not written on the script."],
     steps: [
@@ -116,11 +122,12 @@ const DEMO_SCENARIOS: DemoScenario[] = [
   },
   {
     patient: { regno: "1002", name: "APPDEMOTWO PATIENT", age: "42", gender: "F" },
-    prescriptions: [
-      { text: "Nux Vomica 200C - BD x 3 days", confidence: 0.95 },
-      { text: "Belladonna 30C - TDS", confidence: 0.91 },
+    prescription: "40 size Nux Vomica 200 bd // Belladonna 30 tid // 3 days 150",
+    prescriptionConfidence: 0.91,
+    medicines: [
+      { text: "Nux Vomica 200", confidence: 0.95 },
+      { text: "Belladonna 30", confidence: 0.91 },
     ],
-    amount: "Rs 150",
     outcome: "ready",
     reviewReasons: [],
     steps: [
@@ -135,16 +142,17 @@ const DEMO_SCENARIOS: DemoScenario[] = [
       { agent: "pharmacist", status: "progress", message: "\"Nux Vom 200\" matched to Nux Vomica 200C (score 5.93).", delay: 1300 },
       { agent: "pharmacist", status: "completed", message: "2 medicines canonicalized, 0 flagged.", delay: 1100 },
       { agent: "composer", status: "started", message: "Composing the final entry with confidences and citations.", delay: 600 },
-      { agent: "composer", status: "completed", message: "Entry ready for review: RegNo 1002, 2 prescriptions, Rs 150.", delay: 1500 },
+      { agent: "composer", status: "completed", message: "Entry ready for review: RegNo 1002, one prescription with 2 medicines, amount 150.", delay: 1500 },
     ],
   },
   {
     patient: { regno: "1001", name: "APPDEMOONE PATIENT", age: "31", gender: "M" },
-    prescriptions: [
-      { text: "Rhus Tox 200C - at bedtime", confidence: 0.94 },
-      { text: "Bryonia 30C - TDS x 1 week", confidence: 0.9 },
+    prescription: "40 size Rhus Toxicodendron 200 night // Bryonia 30 tid // 7 days 200",
+    prescriptionConfidence: 0.9,
+    medicines: [
+      { text: "Rhus Toxicodendron 200", confidence: 0.94 },
+      { text: "Bryonia 30", confidence: 0.9 },
     ],
-    amount: "Rs 200",
     outcome: "ready",
     reviewReasons: [],
     steps: [
@@ -159,7 +167,7 @@ const DEMO_SCENARIOS: DemoScenario[] = [
       { agent: "pharmacist", status: "progress", message: "\"Rhus Tox 200\" matched to Rhus Toxicodendron 200C (score 6.12).", delay: 1200 },
       { agent: "pharmacist", status: "completed", message: "2 medicines canonicalized, 0 flagged.", delay: 1100 },
       { agent: "composer", status: "started", message: "Composing the final entry with confidences and citations.", delay: 600 },
-      { agent: "composer", status: "completed", message: "Entry ready for review: RegNo 1001, 2 prescriptions, Rs 200.", delay: 1500 },
+      { agent: "composer", status: "completed", message: "Entry ready for review: RegNo 1001, one prescription with 2 medicines, amount 200.", delay: 1500 },
     ],
   },
 ];
@@ -201,10 +209,11 @@ function saveReviewPayload(id: string, jobs: Job[]) {
     patientName: job.scenario.patient.name,
     age: job.scenario.patient.age,
     gender: job.scenario.patient.gender,
-    amount: job.scenario.amount === "-" ? "" : job.scenario.amount,
     outcome: job.scenario.outcome,
     reviewReasons: job.scenario.reviewReasons,
-    prescriptions: job.scenario.prescriptions,
+    prescription: job.scenario.prescription,
+    prescriptionConfidence: job.scenario.prescriptionConfidence,
+    medicines: job.scenario.medicines,
   }));
   try {
     window.sessionStorage.setItem(`clinicclick-review-${id}`, JSON.stringify(entries));
@@ -330,31 +339,28 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
   const reviewCount = jobs.filter((job) => job.done && job.scenario.outcome === "review").length;
   const currentEvent = feed[0];
 
-  const agentEvents = (agent: AgentKey) => feed.filter((entry) => entry.agent === agent);
-  const agentCompletedScripts = (agent: AgentKey) => {
-    const completed = new Set(
-      agentEvents(agent)
-        .filter((entry) => entry.status === "completed")
-        .map((entry) => entry.jobIndex),
-    );
-    return completed.size;
-  };
+  /* Each script runs through the whole crew before the next one starts,
+     so the active agent + script come straight from the newest event.
+     Completion counts come from per-job logs (not the capped feed). */
+  const activeAgent = running && currentEvent ? currentEvent.agent : null;
+  const activeScript = running && currentEvent ? currentEvent.jobIndex + 1 : null;
+
+  const agentCompletedScripts = (agent: AgentKey) =>
+    jobs.filter((job) => job.logs.some((log) => log.agent === agent && log.status === "completed")).length;
 
   const agentState = (agent: AgentKey): "idle" | "active" | "done" => {
-    const events = agentEvents(agent);
-    if (events.length === 0) return "idle";
-    if (agentCompletedScripts(agent) >= photos.length) return "done";
-    if (running && currentEvent?.agent === agent) return "active";
+    if (jobs.length > 0 && agentCompletedScripts(agent) >= jobs.length) return "done";
+    if (activeAgent === agent) return "active";
     return "idle";
   };
 
   const agentStatusLabel = (agent: AgentKey): string => {
+    const total = jobs.length;
     const completed = agentCompletedScripts(agent);
-    const events = agentEvents(agent);
-    if (events.length === 0) return "waiting";
-    if (completed >= photos.length) return "completed";
-    if (running && currentEvent?.agent === agent) return "processing";
-    return completed > 0 ? "in queue" : "waiting";
+    if (total > 0 && completed >= total) return "completed";
+    if (activeAgent === agent) return `processing script ${activeScript}/${total}`;
+    if (completed > 0) return `${completed}/${total} scripts done`;
+    return "waiting";
   };
 
   const agentLastMessage = (agent: AgentKey): string => {
@@ -380,7 +386,11 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
         <div className="window-titlebar">
           <span className="window-app-icon">P</span>
           <span>Upload Session #{id}</span>
-          <div className="window-controls" aria-hidden="true"><i>_</i><i>□</i><i className="close">×</i></div>
+          <div className="window-controls">
+            <i aria-hidden="true">_</i>
+            <i aria-hidden="true">□</i>
+            <button aria-label="Close and go back" className="close" onClick={() => router.push("/upload")} type="button">×</button>
+          </div>
         </div>
 
         <div className="page-workspace">
@@ -669,7 +679,7 @@ function JobRow({ job, index, expanded, onToggle }: {
           </span>
         </td>
         <td>{started ? `${job.scenario.patient.name} (${job.scenario.patient.regno})` : "-"}</td>
-        <td>{started ? job.scenario.prescriptions.map((p) => p.text).join("; ") : "-"}</td>
+        <td>{started ? job.scenario.prescription : "-"}</td>
         <td>
           <span className="stage-chip" data-tone={job.stageTone}><i />{job.stage}</span>
         </td>
@@ -694,16 +704,16 @@ function JobRow({ job, index, expanded, onToggle }: {
                     <li><b>RegNo</b><span>{job.scenario.patient.regno}</span></li>
                     <li><b>Name</b><span>{job.scenario.patient.name}</span></li>
                     <li><b>Age / Gender</b><span>{job.scenario.patient.age} / {job.scenario.patient.gender}</span></li>
-                    <li><b>Amount</b><span>{job.scenario.amount}</span></li>
+                    <li><b>Prescription</b><span>{job.scenario.prescription}</span></li>
                   </ul>
                 </div>
                 <div className="detail-card">
-                  <h4>PRESCRIPTIONS (GROUNDED)</h4>
+                  <h4>MEDICINES (GROUNDED)</h4>
                   <ul>
-                    {job.scenario.prescriptions.map((prescription) => (
-                      <li key={prescription.text}>
-                        <b>{prescription.text}</b>
-                        <span>confidence {(prescription.confidence * 100).toFixed(0)}%</span>
+                    {job.scenario.medicines.map((medicine) => (
+                      <li key={medicine.text}>
+                        <b>{medicine.text}</b>
+                        <span>confidence {(medicine.confidence * 100).toFixed(0)}%</span>
                       </li>
                     ))}
                     {job.scenario.reviewReasons.map((reason) => (

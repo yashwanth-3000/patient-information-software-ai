@@ -2,8 +2,9 @@
 
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-type ReviewPrescription = { text: string; confidence: number };
+type ReviewMedicine = { text: string; confidence: number };
 
 type ReviewEntry = {
   photoName: string;
@@ -13,10 +14,13 @@ type ReviewEntry = {
   patientName: string;
   age: string;
   gender: string;
-  amount: string;
   outcome: "ready" | "review";
   reviewReasons: string[];
-  prescriptions: ReviewPrescription[];
+  /* One prescription per script, PIS style: medicines separated by "//",
+     days and amount at the end, full remedy names. */
+  prescription: string;
+  prescriptionConfidence: number;
+  medicines: ReviewMedicine[];
 };
 
 /** Fallback shown when the review page is opened without a processed batch. */
@@ -29,13 +33,14 @@ const FALLBACK_ENTRIES: ReviewEntry[] = [
     patientName: "NAGENDER D. CONDUCTER",
     age: "46",
     gender: "M",
-    amount: "",
     outcome: "ready",
     reviewReasons: [],
-    prescriptions: [
-      { text: "Arsenicum Album 30C", confidence: 0.96 },
-      { text: "Sac Lac (placebo)", confidence: 0.99 },
-      { text: "Sac Lac (placebo)", confidence: 0.99 },
+    prescription: "40 size Arsenicum Album 30 tid // Sac Lac // Sac Lac // 15 days 300",
+    prescriptionConfidence: 0.96,
+    medicines: [
+      { text: "Arsenicum Album 30", confidence: 0.96 },
+      { text: "Sac Lac", confidence: 0.99 },
+      { text: "Sac Lac", confidence: 0.99 },
     ],
   },
   {
@@ -46,13 +51,14 @@ const FALLBACK_ENTRIES: ReviewEntry[] = [
     patientName: "VIJAYA ALAGANDULA",
     age: "38",
     gender: "F",
-    amount: "",
     outcome: "review",
     reviewReasons: ["\"Murostin 28\" is not in the remedy corpus.", "Amount not written on the script."],
-    prescriptions: [
-      { text: "Silicea 30C - for 15 days", confidence: 0.93 },
+    prescription: "40 size Silicea 30 // Murostin 28 (unrecognized) // Natrum Sulphuricum 6 // 15 days",
+    prescriptionConfidence: 0.31,
+    medicines: [
+      { text: "Silicea 30", confidence: 0.93 },
       { text: "Murostin 28 (unrecognized)", confidence: 0.31 },
-      { text: "Natrum Sulph 6C - for 15 days", confidence: 0.88 },
+      { text: "Natrum Sulphuricum 6", confidence: 0.88 },
     ],
   },
 ];
@@ -61,17 +67,22 @@ type EditableEntry = ReviewEntry & { approved: boolean };
 
 export default function ReviewSession({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const [entries, setEntries] = useState<EditableEntry[] | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
-    const frame = requestAnimationFrame(() => {
+    // setTimeout instead of requestAnimationFrame: rAF never fires in a
+    // hidden/background tab, which left this page stuck on "Loading batch".
+    const frame = setTimeout(() => {
       let loaded: ReviewEntry[] = FALLBACK_ENTRIES;
       try {
         const raw = window.sessionStorage.getItem(`clinicclick-review-${id}`);
         if (raw) {
           const parsed = JSON.parse(raw) as ReviewEntry[];
-          if (Array.isArray(parsed) && parsed.length > 0) loaded = parsed;
+          if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0]?.prescription === "string") {
+            loaded = parsed;
+          }
         }
       } catch { /* fall back to demo entries */ }
       setEntries(loaded.map((entry) => ({
@@ -80,7 +91,7 @@ export default function ReviewSession({ params }: { params: Promise<{ id: string
         approved: entry.outcome === "ready",
       })));
     });
-    return () => cancelAnimationFrame(frame);
+    return () => clearTimeout(frame);
   }, [id]);
 
   const updateEntry = (index: number, patch: Partial<EditableEntry>) => {
@@ -89,16 +100,6 @@ export default function ReviewSession({ params }: { params: Promise<{ id: string
       : current);
   };
 
-  const updatePrescription = (entryIndex: number, rxIndex: number, text: string) => {
-    setEntries((current) => current
-      ? current.map((entry, i) => i === entryIndex
-        ? {
-          ...entry,
-          prescriptions: entry.prescriptions.map((rx, j) => (j === rxIndex ? { ...rx, text } : rx)),
-        }
-        : entry)
-      : current);
-  };
 
   const approvedCount = entries?.filter((entry) => entry.approved).length ?? 0;
   const approvedEntryLabel = approvedCount === 1 ? "entry" : "entries";
@@ -121,7 +122,11 @@ export default function ReviewSession({ params }: { params: Promise<{ id: string
         <div className="window-titlebar">
           <span className="window-app-icon">P</span>
           <span>Review &amp; Finalize · Session #{id}</span>
-          <div className="window-controls" aria-hidden="true"><i>_</i><i>□</i><i className="close">×</i></div>
+          <div className="window-controls">
+            <i aria-hidden="true">_</i>
+            <i aria-hidden="true">□</i>
+            <button aria-label="Close and go back" className="close" onClick={() => router.push(`/upload/${id}`)} type="button">×</button>
+          </div>
         </div>
 
         <div className="page-workspace">
@@ -200,36 +205,31 @@ export default function ReviewSession({ params }: { params: Promise<{ id: string
                         <label htmlFor={`name-${entryIndex}`}>Patient name</label>
                         <input id={`name-${entryIndex}`} readOnly value={entry.patientName} />
                       </div>
-                      <div className="field-row">
-                        <label htmlFor={`amount-${entryIndex}`}>Amount (Rs)</label>
-                        <input
-                          id={`amount-${entryIndex}`}
-                          onChange={(event) => updateEntry(entryIndex, { amount: event.target.value })}
-                          placeholder="not on script"
-                          value={entry.amount}
-                        />
-                      </div>
-
                       <div className="field-row" style={{ alignItems: "start" }}>
-                        <label style={{ paddingTop: 8 }}>Prescriptions</label>
+                        <label htmlFor={`rx-${entryIndex}`} style={{ paddingTop: 8 }}>Prescription</label>
                         <div className="rx-list">
-                          {entry.prescriptions.map((rx, rxIndex) => (
-                            <div
-                              className="rx-row"
-                              data-flagged={rx.confidence < 0.6}
-                              key={`${entry.index}-${rxIndex}`}
-                            >
-                              <span className="rx-no">{rxIndex + 1}.</span>
-                              <input
-                                aria-label={`Prescription ${rxIndex + 1}`}
-                                onChange={(event) => updatePrescription(entryIndex, rxIndex, event.target.value)}
-                                value={rx.text}
-                              />
-                              <span className="rx-conf">
-                                {rx.confidence < 0.6 ? "⚠ " : ""}confidence {(rx.confidence * 100).toFixed(0)}%
-                              </span>
-                            </div>
-                          ))}
+                          <div className="rx-row" data-flagged={entry.prescriptionConfidence < 0.6}>
+                            <textarea
+                              id={`rx-${entryIndex}`}
+                              onChange={(event) => updateEntry(entryIndex, { prescription: event.target.value })}
+                              rows={2}
+                              value={entry.prescription}
+                            />
+                            <span className="rx-conf">
+                              {entry.prescriptionConfidence < 0.6 ? "⚠ " : ""}confidence {(entry.prescriptionConfidence * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                          <small className="rx-hint">
+                            One entry per script: medicines separated by &quot;//&quot;, days and amount at the end.
+                          </small>
+                          <ul className="rx-medicines">
+                            {entry.medicines.map((medicine) => (
+                              <li data-flagged={medicine.confidence < 0.6} key={medicine.text}>
+                                <span>{medicine.text}</span>
+                                <small>{(medicine.confidence * 100).toFixed(0)}%</small>
+                              </li>
+                            ))}
+                          </ul>
                         </div>
                       </div>
                     </div>

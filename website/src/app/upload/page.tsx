@@ -68,7 +68,11 @@ export default function UploadHome() {
         <div className="window-titlebar">
           <span className="window-app-icon">P</span>
           <span>Script Upload Sessions</span>
-          <div className="window-controls" aria-hidden="true"><i>_</i><i>□</i><i className="close">×</i></div>
+          <div className="window-controls">
+            <i aria-hidden="true">_</i>
+            <i aria-hidden="true">□</i>
+            <button aria-label="Close and go back" className="close" onClick={() => router.push("/")} type="button">×</button>
+          </div>
         </div>
 
         <div className="page-workspace">
