@@ -1,176 +1,159 @@
 import { CopyCommand } from "@/components/copy-command";
 
-const CheckIcon = () => (
-  <svg viewBox="0 0 20 20" aria-hidden="true">
-    <path d="m4 10.5 3.5 3.5L16 5.5" />
-  </svg>
-);
-
 const ArrowIcon = () => (
   <svg viewBox="0 0 20 20" aria-hidden="true">
     <path d="M4 10h12M11 5l5 5-5 5" />
   </svg>
 );
 
-const steps = [
-  {
-    number: "01",
-    title: "Send an approved job",
-    copy: "Your web app defines exactly which synthetic patient fields are allowed for the run.",
-  },
-  {
-    number: "02",
-    title: "Preview before action",
-    copy: "Dry-run mode reads the screen and proposes the first action without clicking or typing.",
-  },
-  {
-    number: "03",
-    title: "Run with guardrails",
-    copy: "Every action is checked against the approved job, logged, and protected by an emergency stop.",
-  },
+const patients = [
+  ["1001", "TEST", "PATIENT", "29", "F", "DEMO CLINIC", "04/07/2026"],
+  ["1002", "SAMPLE", "RECORD", "35", "M", "TRAINING WARD", "04/07/2026"],
+  ["1003", "DEMO", "USER", "50", "F", "QA ENVIRONMENT", "04/07/2026"],
+  ["1004", "CHECK", "ONLY", "19", "M", "SYNTHETIC DATA", "04/07/2026"],
+  ["1005", "ALPHA", "ENTRY", "42", "F", "TEST FACILITY", "04/07/2026"],
+  ["1006", "BETA", "ENTRY", "31", "M", "TEST FACILITY", "04/07/2026"],
 ];
 
-const safeguards = [
-  "Approved fields only",
-  "Synthetic demo data",
-  "No delete actions",
-  "Every action logged",
+const steps = [
+  ["01", "Approve the job", "Choose the exact synthetic fields the assistant is allowed to enter."],
+  ["02", "Preview the action", "Dry run reads the PIS window and proposes a move without touching it."],
+  ["03", "Run with controls", "Every click and typed value is checked, logged, and interruptible."],
 ];
 
 export default function Home() {
   return (
-    <main>
+    <main className="desktop">
       <nav className="nav shell" aria-label="Main navigation">
         <a className="brand" href="#top" aria-label="Patient Information Software AI home">
-          <span className="brand-mark" aria-hidden="true">
-            <span />
-            <span />
-          </span>
-          patient-information-software-ai
+          <span className="brand-icon" aria-hidden="true">P</span>
+          <span>patient-information-software-ai</span>
         </a>
         <div className="nav-links">
-          <a href="#how-it-works">How it works</a>
+          <a href="#how-it-works">Workflow</a>
           <a href="#safety">Safety</a>
-          <a className="nav-cta" href="#demo">
-            View demo <ArrowIcon />
-          </a>
+          <a href="https://github.com/yashwanth-3000/patient-information-software-ai" target="_blank" rel="noreferrer">GitHub</a>
         </div>
       </nav>
 
       <section className="hero shell" id="top">
         <div className="hero-copy">
-          <h1>
-            Patient admin, automated.
-            <em>Care stays human.</em>
-          </h1>
-          <p className="hero-lede">
-            Patient Information Software AI helps care teams complete repetitive patient information
-            tasks with an AI assistant that previews, verifies, and logs every move.
+          <span className="system-label">PIS AUTOMATION CONSOLE / SAFE MODE</span>
+          <h1>Patient information,<strong>without the repetitive work.</strong></h1>
+          <p>
+            A careful AI operator for the patient information system you already use.
+            It previews, verifies, and logs each action before the workflow moves on.
           </p>
           <div className="hero-actions">
-            <a className="button primary" href="#demo">
-              See the workflow <ArrowIcon />
-            </a>
-            <a className="text-link" href="#safety">
-              Explore safeguards <ArrowIcon />
-            </a>
+            <a className="retro-button primary-button" href="#demo">Open demo <ArrowIcon /></a>
+            <a className="retro-button" href="#safety">View safety controls</a>
           </div>
+          <div className="hero-status"><span className="status-light" /> SYSTEM READY <b>6 synthetic records loaded</b></div>
         </div>
 
-        <div className="hero-visual" aria-label="Patient Information Software AI workflow preview">
-          <div className="visual-label"><span className="pulse" /> Live workflow preview</div>
-          <div className="orb orb-one" />
-          <div className="orb orb-two" />
-          <div className="app-card">
-            <div className="app-topbar">
-              <div className="window-dots"><span /><span /><span /></div>
-              <span className="secure-pill">● Secure demo</span>
+        <div className="pis-window" aria-label="Synthetic Patient Information System preview">
+          <div className="window-titlebar">
+            <span className="window-app-icon">P</span>
+            <span>Patient Information System</span>
+            <div className="window-controls" aria-hidden="true"><i>_</i><i>□</i><i className="close">×</i></div>
+          </div>
+          <div className="window-tabs" role="tablist" aria-label="Patient Information System views">
+            <button className="active-tab" type="button" role="tab" aria-selected="true">Search Patients</button>
+            <button type="button" role="tab" aria-selected="false">Add New Patient</button>
+          </div>
+          <div className="window-workspace">
+            <div className="search-row">
+              <label htmlFor="patient-search">Patient :</label>
+              <input id="patient-search" aria-label="Patient search" readOnly />
+              <button type="button">Search</button>
             </div>
-            <div className="app-body">
-              <div className="app-heading">
-                <div>
-                  <span className="mini-label">CURRENT JOB</span>
-                  <h2>Add patient information</h2>
-                </div>
-                <span className="status">Approved</span>
-              </div>
-              <div className="patient-card">
-                <span className="patient-avatar">TP</span>
-                <div><strong>TEST PATIENT</strong><small>Synthetic demo record</small></div>
-                <span className="verified"><CheckIcon /></span>
-              </div>
-              <div className="field-grid">
-                <div><span>First name</span><strong>TEST</strong></div>
-                <div><span>Last name</span><strong>PATIENT</strong></div>
-                <div className="field-wide"><span>Action policy</span><strong>Approved fields only</strong></div>
-              </div>
-              <div className="activity">
-                <div className="activity-line"><span className="activity-icon"><CheckIcon /></span><p><strong>Screen verified</strong><small>Target window matches approved job</small></p><time>Now</time></div>
-                <div className="activity-line muted"><span className="activity-icon">2</span><p><strong>Ready to enter data</strong><small>Waiting for operator start</small></p></div>
-              </div>
-              <button className="run-button" type="button">Run approved demo <ArrowIcon /></button>
+            <div className="table-viewport">
+              <table>
+                <thead><tr>{["RegNo", "FirstName", "LastName", "Age", "Gender", "Address", "FirstVisit"].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead>
+                <tbody>
+                  {patients.map((patient, index) => (
+                    <tr className={index === 0 ? "selected-row" : undefined} key={patient[0]}>
+                      {patient.map((value, cell) => <td key={`${patient[0]}-${cell}`}>{value}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="window-actions">
+              <div><button type="button" disabled>Delete</button><button type="button">Edit</button></div>
+              <div><button type="button">Prescription</button><button type="button">Clear</button></div>
             </div>
           </div>
-          <div className="floating-note note-top"><span><CheckIcon /></span><strong>Safety check passed</strong><small>0 unapproved fields</small></div>
-          <div className="floating-note note-bottom"><span className="log-icon">↗</span><strong>Actions logged</strong><small>Clear, reviewable history</small></div>
+          <div className="window-statusbar">
+            <span><i className="status-light" /> Connected</span>
+            <span>Demo data only</span>
+            <span>Operator approval required</span>
+          </div>
         </div>
       </section>
 
-      <section className="proof-strip">
-        <div className="shell proof-grid">
-          <p>Designed around trust, not shortcuts.</p>
-          {safeguards.map((item) => <div key={item}><CheckIcon />{item}</div>)}
+      <section className="system-strip">
+        <div className="shell strip-inner">
+          <span className="strip-title">GUARDRAILS</span>
+          {['Approved fields only', 'Synthetic records', 'Delete blocked', 'Actions logged'].map((item) => <span key={item}><i>✓</i>{item}</span>)}
         </div>
       </section>
 
       <section className="section shell" id="how-it-works">
-        <div className="section-heading">
-          <div><span className="kicker">HOW IT WORKS</span><h2>A calmer way to handle repetitive work.</h2></div>
-          <p>Patient Information Software AI keeps the operator in control while the assistant handles the precise, repetitive interactions.</p>
-        </div>
-        <div className="steps">
-          {steps.map((step) => (
-            <article className="step" key={step.number}>
-              <span className="step-number">{step.number}</span>
-              <div className="step-rule" />
-              <h3>{step.title}</h3>
-              <p>{step.copy}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="safety" id="safety">
-        <div className="shell safety-grid">
-          <div>
-            <span className="kicker light">SAFETY BY DESIGN</span>
-            <h2>Automation that knows its boundaries.</h2>
-            <p>Patient Information Software AI is deliberately narrow. It accepts approved demo jobs, checks each typed value, and stops when an action falls outside the policy.</p>
-            <a className="button light-button" href="#demo">Review the demo <ArrowIcon /></a>
+        <div className="section-window">
+          <div className="panel-title"><span>Workflow Manager</span><small>3 steps</small></div>
+          <div className="section-intro">
+            <div><span className="system-label">HOW IT WORKS</span><h2>A familiar workflow with a careful operator.</h2></div>
+            <p>The interface stays recognizable. The assistant handles precise repetition while the human operator keeps authority.</p>
           </div>
-          <div className="safety-panel">
-            {[
-              ["Dry run first", "Preview the assistant’s proposed action without touching the screen."],
-              ["Allowlist enforcement", "Only data present in the approved job can be entered."],
-              ["Operator override", "A mouse-corner failsafe and keyboard interrupt stop the run immediately."],
-            ].map(([title, copy], index) => (
-              <div className="safety-item" key={title}><span>0{index + 1}</span><div><h3>{title}</h3><p>{copy}</p></div></div>
+          <div className="steps">
+            {steps.map(([number, title, copy]) => (
+              <article className="step" key={number}>
+                <div className="step-header"><span>{number}</span><b>READY</b></div>
+                <h3>{title}</h3><p>{copy}</p>
+                <div className="progress-track"><i /></div>
+              </article>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="demo section shell" id="demo">
-        <span className="kicker">START WITH A PREVIEW</span>
-        <h2>See what the assistant would do before it does anything.</h2>
-        <p>Run the included dry-run test with a clean, synthetic PIS screen.</p>
-        <CopyCommand />
+      <section className="safety shell" id="safety">
+        <div className="safety-copy">
+          <span className="system-label">SECURITY SETTINGS</span>
+          <h2>Automation with hard boundaries.</h2>
+          <p>The assistant is deliberately narrow. It can only use approved demo data, cannot delete records, and stops when an action falls outside policy.</p>
+          <a className="retro-button primary-button" href="#demo">Review demo command</a>
+        </div>
+        <fieldset className="security-panel">
+          <legend>Protection status</legend>
+          {[
+            ["Dry run first", "Preview actions without clicking or typing."],
+            ["Allowlist enforcement", "Reject any value absent from the approved job."],
+            ["Operator override", "Stop immediately with the failsafe or keyboard interrupt."],
+          ].map(([title, copy]) => (
+            <label key={title}><input type="checkbox" checked readOnly /><span><b>{title}</b><small>{copy}</small></span></label>
+          ))}
+          <div className="security-footer"><span className="status-light" /> All protections active</div>
+        </fieldset>
       </section>
 
-      <footer className="footer shell">
-        <a className="brand" href="#top"><span className="brand-mark"><span /><span /></span>patient-information-software-ai</a>
-        <p>Human-approved automation for patient information workflows.</p>
-        <span>© 2026 patient-information-software-ai</span>
+      <section className="demo shell" id="demo">
+        <div className="dialog-titlebar">Command Prompt <span>_ □ ×</span></div>
+        <div className="demo-content">
+          <span className="system-label">DRY RUN</span>
+          <h2>Preview before the first click.</h2>
+          <p>Run the included test with a clean PIS screenshot containing synthetic data only.</p>
+          <CopyCommand />
+        </div>
+      </section>
+
+      <footer className="footer">
+        <div className="shell footer-inner">
+          <a className="start-button" href="#top"><span>●</span> patient-information-software-ai</a>
+          <span>Human-approved automation</span>
+          <time>© 2026</time>
+        </div>
       </footer>
     </main>
   );

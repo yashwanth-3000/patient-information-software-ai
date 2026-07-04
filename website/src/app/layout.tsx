@@ -1,18 +1,5 @@
 import type { Metadata } from "next";
-import { Host_Grotesk, Inter } from "next/font/google";
 import "./globals.css";
-
-const hostGrotesk = Host_Grotesk({
-  variable: "--font-host-grotesk",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-});
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
 
 export const metadata: Metadata = {
   title: "patient-information-software-ai | Care stays human",
@@ -26,10 +13,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${hostGrotesk.variable} ${inter.variable} h-full antialiased`}
-    >
+    <html lang="en">
       <body>{children}</body>
     </html>
   );
