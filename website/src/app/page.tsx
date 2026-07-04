@@ -16,9 +16,10 @@ const patients = [
 ];
 
 const steps = [
-  ["01", "Approve in the app", "The web workflow sends only final, approved patient data."],
-  ["02", "Queue on Vultr", "The demo API holds approved jobs until the clinic requests them."],
-  ["03", "Click Get New Data", "PIS imports the batch, refreshes the table, and acknowledges completion."],
+  ["01", "Perception", "Vision OCR reads the doctor's handwriting, with alternates for every ambiguous digit - because his 2s look like 9s."],
+  ["02", "Live retrieval", "The records agent queries the clinic's live patient database in real time, retrying variants until the identity checks out."],
+  ["03", "Grounded decisions", "Every medicine is cited against a homeopathy remedy corpus via VultronRetriever rerank - no citation, no entry."],
+  ["04", "Human-approved outcome", "An assistant swipes to approve, and one click inside PIS files the whole batch into the patient records."],
 ];
 
 export default function Home() {
@@ -38,14 +39,15 @@ export default function Home() {
 
       <section className="hero shell" id="top">
         <div className="hero-copy">
-          <h1>Patient information,<strong>without the repetitive work.</strong></h1>
+          <h1>An agent crew for<strong>my dad&apos;s real clinic.</strong></h1>
           <p>
-            A direct cloud import for the patient information system you already use.
-            Approved app data arrives through one simple button inside PIS.
+            My dad is a doctor. His handwritten prescriptions used to wait weeks to be
+            typed into his 20-year-old patient software. Now five agents plan, retrieve,
+            call tools, and decide - every LLM workload on Vultr Serverless Inference.
           </p>
           <div className="hero-actions">
-            <Link className="retro-button primary-button" href="/upload">Upload scripts <ArrowIcon /></Link>
-            <a className="retro-button" href="#how-it-works">See the workflow</a>
+            <Link className="retro-button primary-button" href="/upload">Run the pipeline <ArrowIcon /></Link>
+            <Link className="retro-button" href="/about">How it works</Link>
           </div>
         </div>
 
@@ -100,10 +102,10 @@ export default function Home() {
 
       <section className="section shell" id="how-it-works">
         <div className="section-window">
-          <div className="panel-title"><span>Workflow Manager</span><small>3 steps</small></div>
+          <div className="panel-title"><span>Workflow Manager</span><small>4 steps</small></div>
           <div className="section-intro">
-            <div><span className="system-label">HOW IT WORKS</span><h2>A familiar workflow with one new tab.</h2></div>
-            <p>No local server and no command window. PIS pulls approved data directly from the app&apos;s Vultr API.</p>
+            <div><span className="system-label">HOW IT WORKS</span><h2>A multi-step workflow, not a single call.</h2></div>
+            <p>Every script runs through the full crew - perception, live retrieval, document grounding, and a final decision - through an API bridge we patched into the clinic&apos;s real 20-year-old PIS.</p>
           </div>
           <div className="steps">
             {steps.map(([number, title, copy]) => (
@@ -120,9 +122,9 @@ export default function Home() {
       <section className="safety shell" id="safety">
         <div className="safety-copy">
           <span className="system-label">SECURITY SETTINGS</span>
-          <h2>Direct import with hard boundaries.</h2>
-          <p>The demo accepts only approved APPDEMO records, imports each job once, and rolls back the whole job if any database write fails.</p>
-          <a className="retro-button primary-button" href="#demo">Review the import flow</a>
+          <h2>Evidence in, entries out.</h2>
+          <p>No value is ever invented - every field traces to OCR evidence, a live database record, or a corpus citation, and a human signs off before anything touches twenty years of patient history.</p>
+          <Link className="retro-button primary-button" href="/upload">Try it on a script</Link>
         </div>
         <fieldset className="security-panel">
           <legend>Protection status</legend>
@@ -135,16 +137,6 @@ export default function Home() {
           ))}
           <div className="security-footer"><span className="status-light" /> All protections active</div>
         </fieldset>
-      </section>
-
-      <section className="demo shell" id="demo">
-        <div className="dialog-titlebar">Get New Data from App <span>_ □ ×</span></div>
-        <div className="demo-content">
-          <span className="system-label">VULTR DEMO</span>
-          <h2>Approved data, one button away.</h2>
-          <p>Open the new PIS tab and click Get New Data. Two synthetic patients and their demo prescriptions import automatically.</p>
-          <a className="retro-button primary-button" href="http://65.20.78.208/health" target="_blank" rel="noreferrer">Check API status <ArrowIcon /></a>
-        </div>
       </section>
 
       <footer className="footer">
