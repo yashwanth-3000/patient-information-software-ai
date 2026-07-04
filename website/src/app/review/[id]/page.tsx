@@ -223,8 +223,8 @@ export default function ReviewSession({ params }: { params: Promise<{ id: string
                             One entry per script: medicines separated by &quot;//&quot;, days and amount at the end.
                           </small>
                           <ul className="rx-medicines">
-                            {entry.medicines.map((medicine) => (
-                              <li data-flagged={medicine.confidence < 0.6} key={medicine.text}>
+                            {entry.medicines.map((medicine, medicineIndex) => (
+                              <li data-flagged={medicine.confidence < 0.6} key={`${medicine.text}-${medicineIndex}`}>
                                 <span>{medicine.text}</span>
                                 <small>{(medicine.confidence * 100).toFixed(0)}%</small>
                               </li>

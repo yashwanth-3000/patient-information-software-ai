@@ -710,8 +710,8 @@ function JobRow({ job, index, expanded, onToggle }: {
                 <div className="detail-card">
                   <h4>MEDICINES (GROUNDED)</h4>
                   <ul>
-                    {job.scenario.medicines.map((medicine) => (
-                      <li key={medicine.text}>
+                    {job.scenario.medicines.map((medicine, medicineIndex) => (
+                      <li key={`${medicine.text}-${medicineIndex}`}>
                         <b>{medicine.text}</b>
                         <span>confidence {(medicine.confidence * 100).toFixed(0)}%</span>
                       </li>
