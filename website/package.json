@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint && npm run check:em-dashes",
+    "check:em-dashes": "node scripts/check-no-em-dashes.mjs"
   },
   "dependencies": {
     "next": "16.2.10",

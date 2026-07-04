@@ -17,3 +17,5 @@ Open [http://localhost:3000](http://localhost:3000).
 npm run lint
 npm run build
 ```
+
+The lint command also rejects em dashes across website source and documentation.
