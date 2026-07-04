@@ -31,9 +31,8 @@ export default function Home() {
         </a>
         <div className="nav-links">
           <Link href="/upload">Upload</Link>
-          <a href="#how-it-works">Workflow</a>
-          <a href="#safety">Safety</a>
           <a href="https://github.com/yashwanth-3000/patient-information-software-ai" target="_blank" rel="noreferrer">GitHub</a>
+          <Link className="nav-em" href="/about">About ▸</Link>
         </div>
       </nav>
 
@@ -104,7 +103,7 @@ export default function Home() {
           <div className="panel-title"><span>Workflow Manager</span><small>3 steps</small></div>
           <div className="section-intro">
             <div><span className="system-label">HOW IT WORKS</span><h2>A familiar workflow with one new tab.</h2></div>
-            <p>No local server and no command window. PIS pulls approved data directly from the ClinicClick API.</p>
+            <p>No local server and no command window. PIS pulls approved data directly from the app&apos;s Vultr API.</p>
           </div>
           <div className="steps">
             {steps.map(([number, title, copy]) => (

@@ -31,6 +31,9 @@ svg { width: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-l
 .nav-links { display: flex; align-items: center; padding: 3px; border: 1px solid #8296a6; border-radius: 4px; background: linear-gradient(#fff, #d7dde2); box-shadow: 0 1px 2px #2b4b6240; }
 .nav-links a { padding: 7px 15px; border-right: 1px solid #aab5be; font-size: 12px; }
 .nav-links a:last-child { border-right: 0; }.nav-links a:hover { background: #dceeff; }
+.nav-links a.nav-em { margin-left: 3px; border-right: 0; border: 1px solid #063d70; border-radius: 3px; background: linear-gradient(#42a9ef, #076ab6); color: #fff; font-weight: 700; text-shadow: 0 1px 0 #04365e66; box-shadow: inset 1px 1px #a8ddff, 1px 1px 2px #23384a44; }
+.nav-links a.nav-em:hover { background: linear-gradient(#5cb8f4, #0b78c9); }
+.nav-links a.nav-em:active { background: linear-gradient(#076ab6, #42a9ef); box-shadow: inset 1px 1px 3px #04365e88; }
 
 .hero { padding: 66px 0 90px; text-align: center; }
 .hero-copy { max-width: 820px; margin: 0 auto; }
@@ -429,6 +432,7 @@ button.sub-title-toggle:hover { background: linear-gradient(#ffffff 0%, #eef6fc 
   .nav-links { flex: none; }
   .nav-links a { display: none; min-height: 38px; align-items: center; padding: 0 12px; }
   .nav-links a:first-child { display: flex; border-right: 0; }
+  .nav-links a.nav-em { display: flex; }
 
   .hero { padding: 44px 0 60px; }
   .hero h1 { font-size: clamp(39px, 11vw, 46px); line-height: 1; }
@@ -603,3 +607,4 @@ button.sub-title-toggle:hover { background: linear-gradient(#ffffff 0%, #eef6fc 
   .review-submit-bar { grid-template-columns: 1fr; }
   .review-submit-bar > b { grid-column: 1; }
 }
+

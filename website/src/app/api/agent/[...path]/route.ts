@@ -1,5 +1,5 @@
 /**
- * Server-side proxy to the ClinicClick agent backend on Vultr.
+ * Server-side proxy to the patient-information-software-ai agent backend on Vultr.
  *
  * The website is served over HTTPS (Vercel) while the Vultr agent backend
  * speaks plain HTTP (the legacy clinic PIS requires it). Browsers block

@@ -244,8 +244,7 @@ export default function ReviewSession({ params }: { params: Promise<{ id: string
         </Link>
         <div className="nav-links">
           <Link href="/upload">Upload</Link>
-          <Link href="/#how-it-works">Workflow</Link>
-          <Link href="/#safety">Safety</Link>
+          <Link className="nav-em" href="/about">About ▸</Link>
         </div>
       </nav>
 
