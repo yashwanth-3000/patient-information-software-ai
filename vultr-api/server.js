@@ -47,6 +47,15 @@ const seedJobs = Object.freeze([
 
 let importedIds = new Set();
 
+// Entries confirmed in the ClinicClick agent UI wait here until the clinic
+// PIS pulls them with "Get New Data".
+let submittedJobs = [];
+let submitCounter = 0;
+
+function allJobs() {
+  return [...seedJobs, ...submittedJobs];
+}
+
 // Live patient lookup relay: the web caller long-polls while the PIS plugin
 // picks up the query, reads the local Access database, and posts the answer.
 let queryCounter = 0;
@@ -110,8 +119,45 @@ const server = http.createServer(async (req, res) => {
     if (clinicId !== "clinic-demo") {
       return sendJson(res, 400, { error: "Unknown clinic_id" });
     }
-    const jobs = seedJobs.filter(job => !importedIds.has(job.id));
+    const jobs = allJobs().filter(job => !importedIds.has(job.id));
     return sendJson(res, 200, { jobs });
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/pis/submit") {
+    let body;
+    try {
+      body = await readJson(req);
+    } catch {
+      return sendJson(res, 400, { error: "Invalid JSON" });
+    }
+    const regno = Number(body.regno);
+    const prescriptions = Array.isArray(body.prescriptions) ? body.prescriptions : [];
+    const validPrescriptions = prescriptions
+      .map(item => ({
+        text: String(item.text || "").trim().slice(0, 255),
+        date: String(item.date || "").trim()
+      }))
+      .filter(item => item.text && /^\d{4}-\d{2}-\d{2}$/.test(item.date));
+    if (!Number.isInteger(regno) || regno <= 0) {
+      return sendJson(res, 400, { error: "regno must be a positive integer" });
+    }
+    if (validPrescriptions.length === 0) {
+      return sendJson(res, 400, { error: "At least one prescription with text and date (YYYY-MM-DD) is required" });
+    }
+    const job = {
+      id: `agent-${Date.now()}-${++submitCounter}`,
+      clinic_id: "clinic-demo",
+      status: "approved",
+      type: "prescription",
+      regno,
+      patient_name: String(body.patient_name || "").slice(0, 120),
+      amount: Number.isFinite(Number(body.amount)) ? Number(body.amount) : null,
+      source: String(body.source || "clinicclick-agent"),
+      prescriptions: validPrescriptions
+    };
+    submittedJobs.push(job);
+    if (submittedJobs.length > 200) submittedJobs = submittedJobs.slice(-200);
+    return sendJson(res, 200, { ok: true, id: job.id, pending: allJobs().filter(item => !importedIds.has(item.id)).length });
   }
 
   const patientMatch = url.pathname.match(/^\/api\/patients\/(\d+)$/);
@@ -170,7 +216,7 @@ const server = http.createServer(async (req, res) => {
   const ackMatch = url.pathname.match(/^\/api\/pis\/jobs\/([^/]+)\/ack$/);
   if (req.method === "POST" && ackMatch) {
     const id = decodeURIComponent(ackMatch[1]);
-    if (!seedJobs.some(job => job.id === id)) {
+    if (!allJobs().some(job => job.id === id)) {
       return sendJson(res, 404, { error: "Job not found" });
     }
     importedIds.add(id);
@@ -180,15 +226,16 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "POST" && url.pathname === "/api/demo/reset") {
     if (!isAdmin(req)) return sendJson(res, 401, { error: "Unauthorized" });
     importedIds = new Set();
-    return sendJson(res, 200, { ok: true, pending: seedJobs.length });
+    submittedJobs = [];
+    return sendJson(res, 200, { ok: true, pending: allJobs().length });
   }
 
   if (req.method === "POST" && url.pathname === "/api/demo/inspect") {
     if (!isAdmin(req)) return sendJson(res, 401, { error: "Unauthorized" });
     return sendJson(res, 200, {
-      total: seedJobs.length,
+      total: allJobs().length,
       imported: [...importedIds],
-      pending: seedJobs.filter(job => !importedIds.has(job.id)).map(job => job.id)
+      pending: allJobs().filter(job => !importedIds.has(job.id)).map(job => job.id)
     });
   }
 

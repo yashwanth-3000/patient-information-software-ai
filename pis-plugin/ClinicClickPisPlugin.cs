@@ -24,6 +24,13 @@ namespace ClinicClick.PisPlugin
 
         public string Status;
 
+        // When RegNo > 0 this job adds prescriptions to an existing patient
+        // (script entry queued by the ClinicClick agent). Otherwise it creates
+        // a new patient record.
+        public long RegNo;
+
+        public string PatientName;
+
         public PatientData Patient;
 
         public List<PrescriptionData> Prescriptions;
@@ -571,7 +578,7 @@ namespace ClinicClick.PisPlugin
                     foreach (ImportJob job in pending.Jobs)
                     {
                         position++;
-                        string name = (job.Patient.FirstName + " " + job.Patient.LastName).Trim();
+                        string name = JobDisplayName(job);
                         if (WasImported(connection, job.Id))
                         {
                             skipped++;
@@ -644,11 +651,21 @@ namespace ClinicClick.PisPlugin
 
                 foreach (ImportJob job in jobs)
                 {
-                    ListViewItem item = new ListViewItem((job.Patient.FirstName + " " + job.Patient.LastName).Trim());
-                    item.SubItems.Add(job.Patient.Age.ToString(CultureInfo.InvariantCulture));
-                    item.SubItems.Add(job.Patient.Gender);
-                    item.SubItems.Add(job.Patient.Address);
-                    item.SubItems.Add(job.Patient.FirstVisit);
+                    ListViewItem item = new ListViewItem(JobDisplayName(job));
+                    if (job.RegNo > 0)
+                    {
+                        item.SubItems.Add("-");
+                        item.SubItems.Add("-");
+                        item.SubItems.Add("Existing patient (RegNo " + job.RegNo + ")");
+                        item.SubItems.Add("-");
+                    }
+                    else
+                    {
+                        item.SubItems.Add(job.Patient.Age.ToString(CultureInfo.InvariantCulture));
+                        item.SubItems.Add(job.Patient.Gender);
+                        item.SubItems.Add(job.Patient.Address);
+                        item.SubItems.Add(job.Patient.FirstVisit);
+                    }
                     int count = job.Prescriptions == null ? 0 : job.Prescriptions.Count;
                     item.SubItems.Add(count.ToString(CultureInfo.InvariantCulture));
                     list.Items.Add(item);
@@ -880,7 +897,10 @@ namespace ClinicClick.PisPlugin
                 ImportJob job = new ImportJob();
                 job.Id = GetString(item, "id", true);
                 job.Status = GetString(item, "status", true);
-                job.Patient = ReadPatient(GetObject(item, "patient", true));
+                job.RegNo = GetOptionalLong(item, "regno");
+                job.PatientName = GetString(item, "patient_name", false);
+                Dictionary<string, object> patientObject = GetObject(item, "patient", job.RegNo <= 0);
+                job.Patient = patientObject == null ? null : ReadPatient(patientObject);
                 job.Prescriptions = ReadPrescriptions(GetArray(item, "prescriptions", false));
                 response.Jobs.Add(job);
             }
@@ -981,6 +1001,15 @@ namespace ClinicClick.PisPlugin
             throw new InvalidOperationException("ClinicClick response has invalid " + key + ".");
         }
 
+        private static long GetOptionalLong(Dictionary<string, object> values, string key)
+        {
+            object value;
+            if (!values.TryGetValue(key, out value) || value == null) return 0;
+            if (value is long) return (long)value;
+            if (value is int) return (int)value;
+            return 0;
+        }
+
         private static void ImportOne(OleDbConnection connection, ImportJob job)
         {
             // The Jet 4.0 provider rejects Serializable; its default level still
@@ -989,7 +1018,17 @@ namespace ClinicClick.PisPlugin
             {
                 try
                 {
-                    int regNo = InsertPatient(connection, transaction, job.Patient);
+                    int regNo;
+                    if (job.RegNo > 0)
+                    {
+                        regNo = (int)job.RegNo;
+                        if (!PatientExists(connection, transaction, regNo))
+                            throw new InvalidOperationException("Patient " + regNo + " does not exist in this database.");
+                    }
+                    else
+                    {
+                        regNo = InsertPatient(connection, transaction, job.Patient);
+                    }
                     if (job.Prescriptions != null)
                     {
                         foreach (PrescriptionData prescription in job.Prescriptions)
@@ -1003,6 +1042,27 @@ namespace ClinicClick.PisPlugin
                     try { transaction.Rollback(); } catch { }
                     throw;
                 }
+            }
+        }
+
+        private static string JobDisplayName(ImportJob job)
+        {
+            if (job.RegNo > 0)
+            {
+                string name = (job.PatientName ?? "").Trim();
+                if (name.Length == 0) name = "Existing patient";
+                return name + " [RegNo " + job.RegNo + "]";
+            }
+            return (job.Patient.FirstName + " " + job.Patient.LastName).Trim();
+        }
+
+        private static bool PatientExists(OleDbConnection connection, OleDbTransaction transaction, int regNo)
+        {
+            using (OleDbCommand command = new OleDbCommand(
+                "SELECT COUNT(*) FROM [Patient] WHERE [RegNo]=?", connection, transaction))
+            {
+                command.Parameters.Add("@RegNo", OleDbType.Integer).Value = regNo;
+                return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture) > 0;
             }
         }
 
@@ -1041,6 +1101,20 @@ namespace ClinicClick.PisPlugin
         {
             if (job == null || String.IsNullOrEmpty(job.Id)) throw new InvalidOperationException("Invalid job id.");
             if (job.Status != "approved") throw new InvalidOperationException("Only approved jobs can be imported.");
+
+            if (job.RegNo > 0)
+            {
+                // Prescription entry for an existing patient, queued by the agent.
+                if (job.Prescriptions == null || job.Prescriptions.Count == 0)
+                    throw new InvalidOperationException("Prescription job has no prescriptions.");
+                foreach (PrescriptionData prescription in job.Prescriptions)
+                {
+                    RequireLength(prescription.Text, 1, 255, "prescription");
+                    ParseDate(prescription.Date);
+                }
+                return;
+            }
+
             if (job.Patient == null) throw new InvalidOperationException("Patient data is missing.");
             string identity = ((job.Patient.FirstName ?? "") + " " + (job.Patient.LastName ?? "")).ToUpperInvariant();
             if (identity.IndexOf("APPDEMO", StringComparison.Ordinal) < 0)

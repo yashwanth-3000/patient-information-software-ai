@@ -18,6 +18,40 @@ test("health and pending demo jobs", async () => {
   assert.equal(pending.jobs[0].status, "approved");
 });
 
+test("agent submissions join the pending queue", async () => {
+  await new Promise(resolve => server.listening ? resolve() : server.once("listening", resolve));
+  const address = server.address();
+  const base = `http://127.0.0.1:${address.port}`;
+
+  const rejected = await fetch(`${base}/api/pis/submit`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ regno: 0, prescriptions: [] })
+  });
+  assert.equal(rejected.status, 400);
+
+  const accepted = await fetch(`${base}/api/pis/submit`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      regno: 27531,
+      patient_name: "APPDEMOONE PATIENT",
+      amount: 150,
+      prescriptions: [{ text: "Arsenicum Album 30C - 3-3-3 x 1 week", date: "2026-07-04" }]
+    })
+  }).then(r => r.json());
+  assert.equal(accepted.ok, true);
+
+  const pending = await fetch(`${base}/api/pis/pending?clinic_id=clinic-demo`).then(r => r.json());
+  const job = pending.jobs.find(item => item.id === accepted.id);
+  assert.ok(job);
+  assert.equal(job.type, "prescription");
+  assert.equal(job.regno, 27531);
+
+  const ack = await fetch(`${base}/api/pis/jobs/${accepted.id}/ack`, { method: "POST" }).then(r => r.json());
+  assert.equal(ack.ok, true);
+});
+
 test("patient query relay round trip", async () => {
   await new Promise(resolve => server.listening ? resolve() : server.once("listening", resolve));
   const address = server.address();

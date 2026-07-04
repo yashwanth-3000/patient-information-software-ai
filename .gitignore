@@ -1,5 +1,7 @@
 .env
 .venv/
+agent-backend/.venv/
+agent-backend/__pycache__/
 __pycache__/
 artifacts/
 test-data/
