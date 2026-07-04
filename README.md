@@ -1,92 +1,79 @@
-# Patient Information Software AI
+# ClinicClick PIS Integration
 
-ClinicClick is a safety-first AI assistant for patient-information workflows.
-This repository contains the local automation runner, Windows bridge, tests,
-approved synthetic demo jobs, and the React/Next.js product website.
+ClinicClick adds a simple cloud-import workflow to the existing Windows Patient
+Information System without running another API or command window inside the VM.
 
-## Computer Use runner
-
-This folder contains a test runner for Google Gemini Computer Use against the
-Windows patient-information application.
-
-The runner defaults to **dry run**: it sends a screenshot to Gemini and prints
-the first proposed action without clicking or typing anything. In the real flow,
-the web app approves a structured job first. Passing that job with
-`--approved-job` makes the local runner enter and save it directly, without a
-second approval prompt.
-
-## 1. Prepare a safe test screen
-
-Do not use the screenshot shared in chat for the API test: it displays real
-patient names and phone numbers. In the Windows VM, open a clean PIS screen and
-use only a synthetic record named `TEST PATIENT`.
-
-Take a PNG screenshot of that clean screen and place it at:
+## What we are building
 
 ```text
-test-data/pis-clean.png
+ClinicClick web app
+        ↓ approved jobs
+Vultr demo API (Mumbai, plain HTTP for legacy Windows 7)
+        ↓ HTTP when the user clicks Get New Data
+Patched Windows PIS
+        ↓ one Access transaction per job
+Homeopathy.mdb
 ```
 
-## 2. Install
+The patched application adds a third tab named **Get New Data from App**. Its
+button downloads approved jobs, validates them, backs up the Access database,
+imports patients and prescriptions in transactions, acknowledges completed
+jobs, prevents duplicate imports, and refreshes the existing patient table.
 
-On the Mac host (the easiest way to test the existing VM window):
+No background service runs inside Windows. The original `PIS-x86.exe` remains
+available as a fallback.
+
+## Repository layout
+
+- `pis-plugin/`: .NET plugin and Mono.Cecil patcher for the legacy WinForms PIS.
+- `vultr-api/`: dependency-free Node.js demo queue deployed on a Vultr instance.
+- `website/`: ClinicClick product website.
+
+## Live demo API
+
+Runs on a Vultr instance (Mumbai) as a systemd service, served over plain HTTP
+because the Windows 7 legacy .NET stack cannot negotiate TLS 1.2.
+
+- Health: <http://65.20.78.208/health>
+- Pending demo jobs: <http://65.20.78.208/api/pis/pending?clinic_id=clinic-demo>
+
+Only synthetic `APPDEMO` patient data is served by this demo. Do not put real
+patient data on this server: the demo endpoint is unencrypted HTTP.
+
+## Build the patched PIS
+
+Install Mono, then run:
 
 ```bash
-cd /Users/yashwanthkrishna/Desktop/pis-ai
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-cp .env.example .env
+./pis-plugin/build.sh /path/to/PIS-x86.exe
 ```
 
-Create a Gemini API key in Google AI Studio, then put it in `.env`. Never paste
-the key into source code or commit `.env`.
+The generated files appear in `pis-plugin/bin/`:
 
-## 3. Run the no-click API test
+- `PIS-ClinicClick.exe`
+- `PIS-ClinicClick.exe.config`
+- `ClinicClick.PisPlugin.dll`
+
+Place all three beside `Homeopathy.mdb`, close the original PIS, and launch
+`PIS-ClinicClick.exe`. The generated config intentionally does not request
+.NET 4, so it can launch with the same legacy CLR used by the original PIS.
+
+## Verify
 
 ```bash
-python clinicclick_runner.py --screenshot test-data/pis-clean.png
+node --test vultr-api/server.test.js
 ```
 
-Expected result:
+For the Windows demo, open **Get New Data from App**, click **Get New Data**, and
+verify that two `APPDEMO` patients appear. Clicking again must not duplicate
+them.
 
-```text
-DRY RUN — nothing was clicked or typed.
-Proposed action: click ... — Focus the patient search box
-```
+## Safety boundaries
 
-## 4. Run the approved demo job with Gemini Computer Use
-
-First grant the terminal app **Screen Recording** and **Accessibility** access in
-macOS System Settings. Keep the VM window in a fixed position and determine its
-content rectangle as `left,top,width,height`.
-
-The included [demo-job.json](demo-job.json) is already marked approved and uses
-only synthetic data. Example VM rectangle (replace it with the actual rectangle):
-
-```bash
-python clinicclick_runner.py \
-  --live \
-  --approved-job demo-job.json \
-  --region 47,50,1680,1050 \
-  --max-turns 80
-```
-
-Move the mouse to a screen corner at any time to trigger PyAutoGUI's emergency
-stop. Use `Ctrl+C` in Terminal as a second stop mechanism.
-
-Every click, keypress, and typed value in this mode comes from Gemini Computer
-Use. The runner uses low thinking latency, asks Gemini to batch independent
-sequential actions, and prefers keyboard navigation to reduce API round trips.
-It will create the five synthetic patients listed in `demo-job.json`, enter only
-their approved fields, save each one, verify the fifth result, and stop. It logs
-each executed action to
-`artifacts/actions.jsonl`. Delete/remove actions remain impossible, and the run
-stops if Gemini tries to type anything absent from the approved job.
-
-## Important limitation
-
-Gemini Computer Use is a preview feature. Production jobs should be accepted by
-the runner only after verifying a signed approval token from the web app. The
-current automatic mode deliberately accepts only `demo=true` jobs whose patient
-data visibly contains `TEST` or `DEMO`.
+- The demo imports only approved jobs and rejects non-`APPDEMO` patients.
+- Demo prescription text must begin with `DEMO`.
+- SQL values use OLE DB parameters.
+- Patient and prescription inserts share one serializable transaction.
+- A local `ClinicClickImport` table makes job processing idempotent.
+- The first import creates a timestamped database backup.
+- Real patient data must not be added to the demo service.

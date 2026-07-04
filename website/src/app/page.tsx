@@ -1,5 +1,3 @@
-import { CopyCommand } from "@/components/copy-command";
-
 const ArrowIcon = () => (
   <svg viewBox="0 0 20 20" aria-hidden="true">
     <path d="M4 10h12M11 5l5 5-5 5" />
@@ -7,8 +5,8 @@ const ArrowIcon = () => (
 );
 
 const patients = [
-  ["1001", "TEST", "PATIENT", "29", "F", "DEMO CLINIC", "04/07/2026"],
-  ["1002", "SAMPLE", "RECORD", "35", "M", "TRAINING WARD", "04/07/2026"],
+  ["1001", "APPDEMOONE", "PATIENT", "31", "M", "VULTR DEMO 1", "04/07/2026"],
+  ["1002", "APPDEMOTWO", "PATIENT", "42", "F", "VULTR DEMO 2", "04/07/2026"],
   ["1003", "DEMO", "USER", "50", "F", "QA ENVIRONMENT", "04/07/2026"],
   ["1004", "CHECK", "ONLY", "19", "M", "SYNTHETIC DATA", "04/07/2026"],
   ["1005", "ALPHA", "ENTRY", "42", "F", "TEST FACILITY", "04/07/2026"],
@@ -16,9 +14,9 @@ const patients = [
 ];
 
 const steps = [
-  ["01", "Approve the job", "Choose the exact synthetic fields the assistant is allowed to enter."],
-  ["02", "Preview the action", "Dry run reads the PIS window and proposes a move without touching it."],
-  ["03", "Run with controls", "Every click and typed value is checked, logged, and interruptible."],
+  ["01", "Approve in the app", "The web workflow sends only final, approved patient data."],
+  ["02", "Queue on Vultr", "The demo API holds approved jobs until the clinic requests them."],
+  ["03", "Click Get New Data", "PIS imports the batch, refreshes the table, and acknowledges completion."],
 ];
 
 export default function Home() {
@@ -40,8 +38,8 @@ export default function Home() {
         <div className="hero-copy">
           <h1>Patient information,<strong>without the repetitive work.</strong></h1>
           <p>
-            A careful AI operator for the patient information system you already use.
-            It previews, verifies, and logs each action before the workflow moves on.
+            A direct cloud import for the patient information system you already use.
+            Approved app data arrives through one simple button inside PIS.
           </p>
           <div className="hero-actions">
             <a className="retro-button primary-button" href="#demo">Open demo <ArrowIcon /></a>
@@ -58,6 +56,7 @@ export default function Home() {
           <div className="window-tabs" role="tablist" aria-label="Patient Information System views">
             <button className="active-tab" type="button" role="tab" aria-selected="true">Search Patients</button>
             <button type="button" role="tab" aria-selected="false">Add New Patient</button>
+            <button type="button" role="tab" aria-selected="false">Get New Data from App</button>
           </div>
           <div className="window-workspace">
             <div className="search-row">
@@ -83,9 +82,9 @@ export default function Home() {
             </div>
           </div>
           <div className="window-statusbar">
-            <span><i className="status-light" /> Connected</span>
+            <span><i className="status-light" /> Vultr connected</span>
             <span>Demo data only</span>
-            <span>Operator approval required</span>
+            <span>Approved jobs only</span>
           </div>
         </div>
       </section>
@@ -93,7 +92,7 @@ export default function Home() {
       <section className="system-strip">
         <div className="shell strip-inner">
           <span className="strip-title">GUARDRAILS</span>
-          {['Approved fields only', 'Synthetic records', 'Delete blocked', 'Actions logged'].map((item) => <span key={item}><i>✓</i>{item}</span>)}
+          {['Approved cloud jobs', 'Automatic backup', 'Transaction protected', 'Duplicate safe'].map((item) => <span key={item}><i>✓</i>{item}</span>)}
         </div>
       </section>
 
@@ -101,8 +100,8 @@ export default function Home() {
         <div className="section-window">
           <div className="panel-title"><span>Workflow Manager</span><small>3 steps</small></div>
           <div className="section-intro">
-            <div><span className="system-label">HOW IT WORKS</span><h2>A familiar workflow with a careful operator.</h2></div>
-            <p>The interface stays recognizable. The assistant handles precise repetition while the human operator keeps authority.</p>
+            <div><span className="system-label">HOW IT WORKS</span><h2>A familiar workflow with one new tab.</h2></div>
+            <p>No local server and no command window. PIS pulls approved data directly from the ClinicClick API.</p>
           </div>
           <div className="steps">
             {steps.map(([number, title, copy]) => (
@@ -119,16 +118,16 @@ export default function Home() {
       <section className="safety shell" id="safety">
         <div className="safety-copy">
           <span className="system-label">SECURITY SETTINGS</span>
-          <h2>Automation with hard boundaries.</h2>
-          <p>The assistant is deliberately narrow. It can only use approved demo data, cannot delete records, and stops when an action falls outside policy.</p>
-          <a className="retro-button primary-button" href="#demo">Review demo command</a>
+          <h2>Direct import with hard boundaries.</h2>
+          <p>The demo accepts only approved APPDEMO records, imports each job once, and rolls back the whole job if any database write fails.</p>
+          <a className="retro-button primary-button" href="#demo">Review the import flow</a>
         </div>
         <fieldset className="security-panel">
           <legend>Protection status</legend>
           {[
-            ["Dry run first", "Preview actions without clicking or typing."],
-            ["Allowlist enforcement", "Reject any value absent from the approved job."],
-            ["Operator override", "Stop immediately with the failsafe or keyboard interrupt."],
+            ["Backup before import", "Create a timestamped copy of Homeopathy.mdb."],
+            ["Approved demo allowlist", "Reject non-APPDEMO patients and non-DEMO prescriptions."],
+            ["Idempotent jobs", "Remember imported job IDs to prevent duplicates."],
           ].map(([title, copy]) => (
             <label key={title}><input type="checkbox" checked readOnly /><span><b>{title}</b><small>{copy}</small></span></label>
           ))}
@@ -137,19 +136,19 @@ export default function Home() {
       </section>
 
       <section className="demo shell" id="demo">
-        <div className="dialog-titlebar">Command Prompt <span>_ □ ×</span></div>
+        <div className="dialog-titlebar">Get New Data from App <span>_ □ ×</span></div>
         <div className="demo-content">
-          <span className="system-label">DRY RUN</span>
-          <h2>Preview before the first click.</h2>
-          <p>Run the included test with a clean PIS screenshot containing synthetic data only.</p>
-          <CopyCommand />
+          <span className="system-label">VULTR DEMO</span>
+          <h2>Approved data, one button away.</h2>
+          <p>Open the new PIS tab and click Get New Data. Two synthetic patients and their demo prescriptions import automatically.</p>
+          <a className="retro-button primary-button" href="http://65.20.78.208/health" target="_blank" rel="noreferrer">Check API status <ArrowIcon /></a>
         </div>
       </section>
 
       <footer className="footer">
         <div className="shell footer-inner">
           <a className="start-button" href="#top"><span>●</span> patient-information-software-ai</a>
-          <span>Human-approved automation</span>
+          <span>Human-approved cloud import</span>
           <time>© 2026</time>
         </div>
       </footer>
