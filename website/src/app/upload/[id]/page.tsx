@@ -7,13 +7,23 @@ import { useRouter } from "next/navigation";
 import { touchSession } from "../session-store";
 
 /* ------------------------------------------------------------------ */
-/* Demo data: scripted agent runs so the UI can be reviewed before the  */
-/* live backend is wired in.                                            */
+/* Live pipeline: photos upload to the agent backend on Vultr, and the  */
+/* crew's activity streams back over SSE while each script runs through */
+/* the full crew (OCR -> intake -> PIS records -> pharmacist -> composer). */
 /* ------------------------------------------------------------------ */
 
 const AGENT_ORDER = ["ocr", "intake", "records", "pharmacist", "composer"] as const;
 
 type AgentKey = (typeof AGENT_ORDER)[number];
+
+/** Backend agent ids -> UI agent keys. */
+const AGENT_FROM_BACKEND: Record<string, AgentKey> = {
+  ocr_reader: "ocr",
+  script_intake: "intake",
+  patient_records: "records",
+  pharmacist: "pharmacist",
+  entry_composer: "composer",
+};
 
 const AGENT_LABELS: Record<AgentKey, string> = {
   ocr: "Script OCR Reader",
@@ -46,152 +56,49 @@ const SAMPLE_SCRIPTS = [
   { name: "sample-script-4.jpg", url: "/demo-scripts/script-0211.jpg" },
 ];
 
-type DemoStep = {
-  agent: AgentKey;
-  status: "started" | "progress" | "completed" | "error";
-  message: string;
-  delay: number;
-};
-
-type DemoScenario = {
-  patient: { regno: string; name: string; age: string; gender: string };
-  /* One prescription per script, written the way the PIS stores it:
-     medicines separated by "//", days and amount at the end, full remedy
-     names (no short forms). */
-  prescription: string;
-  prescriptionConfidence: number;
-  medicines: { text: string; confidence: number }[];
-  outcome: "ready" | "review";
-  reviewReasons: string[];
-  steps: DemoStep[];
-};
-
-const DEMO_SCENARIOS: DemoScenario[] = [
-  {
-    patient: { regno: "258", name: "NAGENDER D. CONDUCTER", age: "46", gender: "M" },
-    prescription: "40 size Arsenicum Album 30 tid // Sac Lac // Sac Lac // 15 days 300",
-    prescriptionConfidence: 0.96,
-    medicines: [
-      { text: "Arsenicum Album 30", confidence: 0.96 },
-      { text: "Sac Lac", confidence: 0.99 },
-      { text: "Sac Lac", confidence: 0.99 },
-    ],
-    outcome: "ready",
-    reviewReasons: [],
-    steps: [
-      { agent: "ocr", status: "started", message: "Reading handwriting from the photographed script...", delay: 500 },
-      { agent: "ocr", status: "completed", message: "Read patient ID 258, complaint \"skin rash\" and 3 medicine lines.", delay: 2300 },
-      { agent: "intake", status: "started", message: "Normalizing the OCR reading into structured script fields.", delay: 700 },
-      { agent: "intake", status: "completed", message: "Script normalized: 3 medicine lines, 1 patient ID candidate.", delay: 1900 },
-      { agent: "records", status: "started", message: "Verifying identity against the live clinic PIS. Candidate: 258.", delay: 600 },
-      { agent: "records", status: "progress", message: "Asking the legacy PIS for RegNo 258...", delay: 1400 },
-      { agent: "records", status: "completed", message: "Identity verified: RegNo 258 (NAGENDER D. CONDUCTER).", delay: 1800 },
-      { agent: "pharmacist", status: "started", message: "Grounding 3 medicine lines against the remedy corpus.", delay: 500 },
-      { agent: "pharmacist", status: "progress", message: "\"Ars Alb 30\" matched to Arsenicum Album 30C (score 3.67).", delay: 1300 },
-      { agent: "pharmacist", status: "completed", message: "3 medicines canonicalized, 0 flagged.", delay: 1200 },
-      { agent: "composer", status: "started", message: "Composing the final entry with confidences and citations.", delay: 600 },
-      { agent: "composer", status: "completed", message: "Entry ready for review: RegNo 258, one prescription with 3 medicines.", delay: 1700 },
-    ],
-  },
-  {
-    patient: { regno: "315", name: "VIJAYA ALAGANDULA", age: "38", gender: "F" },
-    prescription: "40 size Silicea 30 // Murostin 28 (unrecognized) // Natrum Sulphuricum 6 // 15 days",
-    prescriptionConfidence: 0.31,
-    medicines: [
-      { text: "Silicea 30", confidence: 0.93 },
-      { text: "Murostin 28 (unrecognized)", confidence: 0.31 },
-      { text: "Natrum Sulphuricum 6", confidence: 0.88 },
-    ],
-    outcome: "review",
-    reviewReasons: ["\"Murostin 28\" is not in the remedy corpus.", "Amount not written on the script."],
-    steps: [
-      { agent: "ocr", status: "started", message: "Reading handwriting from the photographed script...", delay: 500 },
-      { agent: "ocr", status: "completed", message: "Read patient ID 315 and 3 medicine lines. One line is hard to read.", delay: 2500 },
-      { agent: "intake", status: "started", message: "Normalizing the OCR reading into structured script fields.", delay: 700 },
-      { agent: "intake", status: "completed", message: "Duration \"for 15 days\" applied to each medicine line.", delay: 1800 },
-      { agent: "records", status: "started", message: "Verifying identity against the live clinic PIS. Candidate: 315.", delay: 600 },
-      { agent: "records", status: "progress", message: "Asking the legacy PIS for RegNo 315...", delay: 1500 },
-      { agent: "records", status: "completed", message: "Identity verified: RegNo 315 (VIJAYA ALAGANDULA).", delay: 1700 },
-      { agent: "pharmacist", status: "started", message: "Grounding 3 medicine lines against the remedy corpus.", delay: 500 },
-      { agent: "pharmacist", status: "progress", message: "\"Silicea 30\" matched to Silicea 30C (score 5.29).", delay: 1200 },
-      { agent: "pharmacist", status: "progress", message: "\"Murostin 28\" has no confident corpus match. Flagging for review.", delay: 1400 },
-      { agent: "pharmacist", status: "completed", message: "2 medicines canonicalized, 1 flagged for human review.", delay: 1100 },
-      { agent: "composer", status: "started", message: "Composing the final entry with confidences and citations.", delay: 600 },
-      { agent: "composer", status: "completed", message: "Entry needs review: 1 unrecognized medicine on RegNo 315.", delay: 1600 },
-    ],
-  },
-  {
-    patient: { regno: "1002", name: "APPDEMOTWO PATIENT", age: "42", gender: "F" },
-    prescription: "40 size Nux Vomica 200 bd // Belladonna 30 tid // 3 days 150",
-    prescriptionConfidence: 0.91,
-    medicines: [
-      { text: "Nux Vomica 200", confidence: 0.95 },
-      { text: "Belladonna 30", confidence: 0.91 },
-    ],
-    outcome: "ready",
-    reviewReasons: [],
-    steps: [
-      { agent: "ocr", status: "started", message: "Reading handwriting from the photographed script...", delay: 500 },
-      { agent: "ocr", status: "completed", message: "Read patient ID 1002, amount Rs 150 and 2 medicine lines.", delay: 2100 },
-      { agent: "intake", status: "started", message: "Normalizing the OCR reading into structured script fields.", delay: 700 },
-      { agent: "intake", status: "completed", message: "Script normalized: 2 medicine lines, dosage preserved as written.", delay: 1700 },
-      { agent: "records", status: "started", message: "Verifying identity against the live clinic PIS. Candidate: 1002.", delay: 600 },
-      { agent: "records", status: "progress", message: "Asking the legacy PIS for RegNo 1002...", delay: 1300 },
-      { agent: "records", status: "completed", message: "Identity verified: RegNo 1002 (APPDEMOTWO PATIENT).", delay: 1700 },
-      { agent: "pharmacist", status: "started", message: "Grounding 2 medicine lines against the remedy corpus.", delay: 500 },
-      { agent: "pharmacist", status: "progress", message: "\"Nux Vom 200\" matched to Nux Vomica 200C (score 5.93).", delay: 1300 },
-      { agent: "pharmacist", status: "completed", message: "2 medicines canonicalized, 0 flagged.", delay: 1100 },
-      { agent: "composer", status: "started", message: "Composing the final entry with confidences and citations.", delay: 600 },
-      { agent: "composer", status: "completed", message: "Entry ready for review: RegNo 1002, one prescription with 2 medicines, amount 150.", delay: 1500 },
-    ],
-  },
-  {
-    patient: { regno: "1001", name: "APPDEMOONE PATIENT", age: "31", gender: "M" },
-    prescription: "40 size Rhus Toxicodendron 200 night // Bryonia 30 tid // 7 days 200",
-    prescriptionConfidence: 0.9,
-    medicines: [
-      { text: "Rhus Toxicodendron 200", confidence: 0.94 },
-      { text: "Bryonia 30", confidence: 0.9 },
-    ],
-    outcome: "ready",
-    reviewReasons: [],
-    steps: [
-      { agent: "ocr", status: "started", message: "Reading handwriting from the photographed script...", delay: 500 },
-      { agent: "ocr", status: "completed", message: "Read patient ID 1001, amount Rs 200 and 2 medicine lines.", delay: 2200 },
-      { agent: "intake", status: "started", message: "Normalizing the OCR reading into structured script fields.", delay: 700 },
-      { agent: "intake", status: "completed", message: "Script normalized: 2 medicine lines, 1 patient ID candidate.", delay: 1600 },
-      { agent: "records", status: "started", message: "Verifying identity against the live clinic PIS. Candidate: 1001.", delay: 600 },
-      { agent: "records", status: "progress", message: "Asking the legacy PIS for RegNo 1001...", delay: 1400 },
-      { agent: "records", status: "completed", message: "Identity verified: RegNo 1001 (APPDEMOONE PATIENT).", delay: 1600 },
-      { agent: "pharmacist", status: "started", message: "Grounding 2 medicine lines against the remedy corpus.", delay: 500 },
-      { agent: "pharmacist", status: "progress", message: "\"Rhus Tox 200\" matched to Rhus Toxicodendron 200C (score 6.12).", delay: 1200 },
-      { agent: "pharmacist", status: "completed", message: "2 medicines canonicalized, 0 flagged.", delay: 1100 },
-      { agent: "composer", status: "started", message: "Composing the final entry with confidences and citations.", delay: 600 },
-      { agent: "composer", status: "completed", message: "Entry ready for review: RegNo 1001, one prescription with 2 medicines, amount 200.", delay: 1500 },
-    ],
-  },
-];
-
 /* ------------------------------------------------------------------ */
 
-type Photo = { id: string; name: string; url: string };
+type Photo = { id: string; name: string; url: string; file: File | null };
 
 type ActivityEvent = {
   id: number;
   jobIndex: number;
   agent: AgentKey;
-  status: DemoStep["status"];
+  status: "started" | "progress" | "completed" | "error";
   message: string;
   at: string;
 };
 
+type EntryForm = {
+  regno: string | null;
+  patient_name: string | null;
+  identity?: { status?: string; pis_name?: string | null };
+  prescriptions?: { text?: string; confidence?: number }[];
+  duration?: string | null;
+  amount?: number | null;
+  ready_for_entry?: boolean;
+  review_reasons?: string[];
+  summary?: string;
+  evidence?: {
+    pis_lookups?: { regno: string; result?: { found?: boolean; patient?: Record<string, unknown> } }[];
+  };
+};
+
 type Job = {
   photo: Photo;
-  scenario: DemoScenario;
+  jobId: string | null;
+  form: EntryForm | null;
+  patient: { regno: string; name: string; age: string; gender: string } | null;
+  prescription: string;
+  prescriptionConfidence: number;
+  medicines: { text: string; confidence: number }[];
+  outcome: "ready" | "review";
+  reviewReasons: string[];
   stage: string;
   stageTone: "wait" | "run" | "ok" | "warn";
   progress: number;
   done: boolean;
+  failed: boolean;
   logs: ActivityEvent[];
 };
 
@@ -199,25 +106,105 @@ function nowStamp(): string {
   return new Date().toLocaleTimeString(undefined, { hour12: false });
 }
 
+function newJob(photo: Photo): Job {
+  return {
+    photo,
+    jobId: null,
+    form: null,
+    patient: null,
+    prescription: "",
+    prescriptionConfidence: 0,
+    medicines: [],
+    outcome: "review",
+    reviewReasons: [],
+    stage: "Queued",
+    stageTone: "wait",
+    progress: 0,
+    done: false,
+    failed: false,
+    logs: [],
+  };
+}
+
+/** Build the PIS-style single prescription line from the composed form. */
+function prescriptionLine(form: EntryForm): string {
+  const parts = (form.prescriptions || [])
+    .map((item) => String(item.text || "").trim())
+    .filter(Boolean);
+  const tail: string[] = [];
+  if (form.duration) tail.push(String(form.duration));
+  if (form.amount != null) tail.push(String(form.amount));
+  return [...parts, tail.join(" ")].filter(Boolean).join(" // ");
+}
+
+function digestForm(form: EntryForm): Pick<Job, "patient" | "prescription" | "prescriptionConfidence" | "medicines" | "outcome" | "reviewReasons"> {
+  const lookups = form.evidence?.pis_lookups || [];
+  const matched = lookups.find(
+    (entry) => entry.result?.found && String(entry.regno) === String(form.regno ?? ""),
+  )?.result?.patient as Record<string, unknown> | undefined;
+  const medicines = (form.prescriptions || []).map((item) => ({
+    text: String(item.text || "").trim(),
+    confidence: typeof item.confidence === "number" ? Math.max(0, Math.min(1, item.confidence)) : 0.5,
+  })).filter((item) => item.text);
+  const confidences = medicines.map((item) => item.confidence);
+  return {
+    patient: {
+      regno: String(form.regno ?? "?"),
+      name: String(form.patient_name ?? "Unknown patient").toUpperCase(),
+      age: matched?.age != null ? String(matched.age) : "?",
+      gender: matched?.gender != null ? String(matched.gender) : "?",
+    },
+    prescription: prescriptionLine(form),
+    prescriptionConfidence: confidences.length ? Math.min(...confidences) : 0,
+    medicines,
+    outcome: form.ready_for_entry ? "ready" : "review",
+    reviewReasons: form.review_reasons || [],
+  };
+}
+
 /** Persist finished jobs so the /review/[id] page can pick them up. */
 function saveReviewPayload(id: string, jobs: Job[]) {
   const entries = jobs.map((job, index) => ({
     photoName: job.photo.name,
-    photoUrl: job.photo.url.startsWith("blob:") ? "" : job.photo.url,
+    photoUrl: job.photo.url,
     index,
-    regno: job.scenario.patient.regno,
-    patientName: job.scenario.patient.name,
-    age: job.scenario.patient.age,
-    gender: job.scenario.patient.gender,
-    outcome: job.scenario.outcome,
-    reviewReasons: job.scenario.reviewReasons,
-    prescription: job.scenario.prescription,
-    prescriptionConfidence: job.scenario.prescriptionConfidence,
-    medicines: job.scenario.medicines,
+    jobId: job.jobId,
+    regno: job.patient?.regno ?? "",
+    patientName: job.patient?.name ?? "",
+    age: job.patient?.age ?? "?",
+    gender: job.patient?.gender ?? "?",
+    outcome: job.outcome,
+    reviewReasons: job.reviewReasons,
+    prescription: job.prescription,
+    prescriptionConfidence: job.prescriptionConfidence,
+    medicines: job.medicines,
   }));
   try {
     window.sessionStorage.setItem(`clinicclick-review-${id}`, JSON.stringify(entries));
   } catch { /* storage full: review page falls back to demo data */ }
+}
+
+/** Parse an SSE byte stream, invoking onEvent per `data:` payload. */
+async function consumeSse(response: Response, onEvent: (data: Record<string, unknown>) => void) {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Stream unavailable");
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const chunks = buffer.split("\n\n");
+    buffer = chunks.pop() ?? "";
+    for (const chunk of chunks) {
+      for (const line of chunk.split("\n")) {
+        if (!line.startsWith("data:")) continue;
+        try {
+          onEvent(JSON.parse(line.slice(5).trim()));
+        } catch { /* ignore malformed frames */ }
+      }
+    }
+  }
 }
 
 export default function UploadSession({ params }: { params: Promise<{ id: string }> }) {
@@ -230,10 +217,8 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
   const [expanded, setExpanded] = useState<number | null>(null);
   const [logsOpen, setLogsOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const eventCounter = useRef(0);
-
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  const jobsRef = useRef<Job[]>([]);
 
   useEffect(() => {
     touchSession(id, {});
@@ -247,6 +232,7 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
         id: `${Date.now()}-${index}-${file.name}`,
         name: file.name,
         url: URL.createObjectURL(file),
+        file,
       }));
     setPhotos((current) => {
       const next = [...current, ...additions];
@@ -260,7 +246,12 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
       const have = new Set(current.map((photo) => photo.name));
       const additions = SAMPLE_SCRIPTS
         .filter((sample) => !have.has(sample.name))
-        .map((sample, index) => ({ id: `sample-${Date.now()}-${index}`, name: sample.name, url: sample.url }));
+        .map((sample, index) => ({
+          id: `sample-${Date.now()}-${index}`,
+          name: sample.name,
+          url: sample.url,
+          file: null,
+        }));
       const next = [...current, ...additions];
       touchSession(id, { photoCount: next.length });
       return next;
@@ -275,68 +266,122 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
     });
   };
 
-  const runAgents = () => {
+  const patchJob = useCallback((jobIndex: number, patch: Partial<Job> | ((job: Job) => Partial<Job>)) => {
+    setJobs((current) => current.map((job, index) => {
+      if (index !== jobIndex) return job;
+      const value = typeof patch === "function" ? patch(job) : patch;
+      return { ...job, ...value };
+    }));
+    jobsRef.current = jobsRef.current.map((job, index) => {
+      if (index !== jobIndex) return job;
+      const value = typeof patch === "function" ? patch(job) : patch;
+      return { ...job, ...value };
+    });
+  }, []);
+
+  const pushEvent = useCallback((jobIndex: number, agent: AgentKey, status: ActivityEvent["status"], message: string) => {
+    const event: ActivityEvent = {
+      id: eventCounter.current++,
+      jobIndex,
+      agent,
+      status,
+      message,
+      at: nowStamp(),
+    };
+    setFeed((current) => [event, ...current].slice(0, 120));
+    patchJob(jobIndex, (job) => ({ logs: [...job.logs, event] }));
+    return event;
+  }, [patchJob]);
+
+  /** Run one photo through the live crew and stream its activity. */
+  const runOne = useCallback(async (jobIndex: number, photo: Photo) => {
+    const blob = photo.file ?? await (await fetch(photo.url)).blob();
+    const body = new FormData();
+    body.append("file", blob, photo.name);
+
+    patchJob(jobIndex, { stage: "Uploading", stageTone: "run", progress: 4 });
+    const created = await fetch("/api/agent/scripts", { method: "POST", body });
+    if (!created.ok) throw new Error(`Upload failed (${created.status})`);
+    const { job_id: jobId } = await created.json() as { job_id: string };
+    patchJob(jobIndex, { jobId });
+
+    const stream = await fetch(`/api/agent/jobs/${jobId}/stream`, {
+      headers: { accept: "text/event-stream" },
+      cache: "no-store",
+    });
+    if (!stream.ok) throw new Error(`Stream failed (${stream.status})`);
+
+    let seenSteps = 0;
+    await consumeSse(stream, (data) => {
+      if (data.type === "agent_activity") {
+        const agent = AGENT_FROM_BACKEND[String(data.agent)] ?? "composer";
+        const status = (["started", "progress", "completed", "error"].includes(String(data.status))
+          ? String(data.status)
+          : "progress") as ActivityEvent["status"];
+        pushEvent(jobIndex, agent, status, String(data.message ?? ""));
+        seenSteps += 1;
+        patchJob(jobIndex, {
+          stage: AGENT_LABELS[agent],
+          stageTone: "run",
+          progress: Math.min(96, 5 + seenSteps * 6),
+        });
+      } else if (data.type === "result") {
+        const form = data.form as EntryForm;
+        const digest = digestForm(form);
+        patchJob(jobIndex, {
+          form,
+          ...digest,
+          stage: digest.outcome === "ready" ? "Ready for entry" : "Needs review",
+          stageTone: digest.outcome === "ready" ? "ok" : "warn",
+          progress: 100,
+          done: true,
+        });
+      } else if (data.type === "error") {
+        throw new Error(String(data.message ?? "Pipeline failed"));
+      }
+    });
+
+    const finished = jobsRef.current[jobIndex];
+    if (!finished?.done) throw new Error("Stream ended before the crew finished");
+  }, [patchJob, pushEvent]);
+
+  const runAgents = async () => {
     if (photos.length === 0 || phase !== "capture") return;
     setPhase("processing");
     setExpanded(null);
     touchSession(id, { status: "processing", photoCount: photos.length });
 
-    const initialJobs: Job[] = photos.map((photo, index) => ({
-      photo,
-      scenario: DEMO_SCENARIOS[index % DEMO_SCENARIOS.length],
-      stage: "Queued",
-      stageTone: "wait",
-      progress: 0,
-      done: false,
-      logs: [],
-    }));
+    const initialJobs = photos.map(newJob);
+    jobsRef.current = initialJobs;
     setJobs(initialJobs);
     setFeed([]);
 
-    let clock = 300;
-    initialJobs.forEach((job, jobIndex) => {
-      const totalSteps = job.scenario.steps.length;
-      job.scenario.steps.forEach((step, stepIndex) => {
-        clock += step.delay;
-        const timer = setTimeout(() => {
-          const event: ActivityEvent = {
-            id: eventCounter.current++,
-            jobIndex,
-            agent: step.agent,
-            status: step.status,
-            message: step.message,
-            at: nowStamp(),
-          };
-          setFeed((current) => [event, ...current].slice(0, 80));
-          setJobs((current) => current.map((entry, index) => {
-            if (index !== jobIndex) return entry;
-            const isLast = stepIndex === totalSteps - 1;
-            const stageLabel = isLast
-              ? (entry.scenario.outcome === "ready" ? "Ready for entry" : "Needs review")
-              : AGENT_LABELS[step.agent];
-            return {
-              ...entry,
-              stage: stageLabel,
-              stageTone: isLast ? (entry.scenario.outcome === "ready" ? "ok" : "warn") : "run",
-              progress: Math.round(((stepIndex + 1) / totalSteps) * 100),
-              done: isLast,
-              logs: [...entry.logs, event],
-            };
-          }));
-          if (jobIndex === initialJobs.length - 1 && stepIndex === totalSteps - 1) {
-            setPhase("done");
-            touchSession(id, { status: "processed" });
-            saveReviewPayload(id, initialJobs);
-          }
-        }, clock);
-        timers.current.push(timer);
-      });
-    });
+    /* Each script runs through the WHOLE crew before the next one starts. */
+    for (let index = 0; index < photos.length; index += 1) {
+      try {
+        await runOne(index, photos[index]);
+      } catch (error) {
+        pushEvent(index, "composer", "error", error instanceof Error ? error.message : "Processing failed");
+        patchJob(index, {
+          stage: "Failed",
+          stageTone: "warn",
+          progress: 100,
+          done: true,
+          failed: true,
+          outcome: "review",
+          reviewReasons: ["Processing failed - retry this script or enter it manually."],
+        });
+      }
+    }
+
+    setPhase("done");
+    touchSession(id, { status: "processed" });
+    saveReviewPayload(id, jobsRef.current);
   };
 
   const running = phase === "processing";
-  const readyCount = jobs.filter((job) => job.done && job.scenario.outcome === "ready").length;
-  const reviewCount = jobs.filter((job) => job.done && job.scenario.outcome === "review").length;
+  const readyCount = jobs.filter((job) => job.done && !job.failed && job.outcome === "ready").length;
+  const reviewCount = jobs.filter((job) => job.done && (job.failed || job.outcome === "review")).length;
   const currentEvent = feed[0];
 
   /* Each script runs through the whole crew before the next one starts,
@@ -608,7 +653,7 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
         <div className="window-statusbar">
           <span><i className="status-light" /> {running ? "Processing batch" : "Idle"}</span>
           <span>Session #{id} reopens anytime with its code</span>
-          <span>Demo data: live pipeline connects next</span>
+          <span>Live crew on Vultr Serverless Inference</span>
         </div>
       </div>
     </main>
@@ -678,16 +723,18 @@ function JobRow({ job, index, expanded, onToggle }: {
             </span>
           </span>
         </td>
-        <td>{started ? `${job.scenario.patient.name} (${job.scenario.patient.regno})` : <span className="pending-dash">-</span>}</td>
-        <td>{started ? job.scenario.prescription : <span className="pending-dash">-</span>}</td>
+        <td>{job.patient ? `${job.patient.name} (${job.patient.regno})` : <span className="pending-dash">-</span>}</td>
+        <td>{job.prescription || <span className="pending-dash">-</span>}</td>
         <td>
           <span className="stage-chip" data-tone={job.stageTone}><i />{job.stage}</span>
         </td>
         <td>
           {job.done
-            ? (job.scenario.outcome === "ready"
-              ? <span className="stage-chip" data-tone="ok"><i />READY</span>
-              : <span className="stage-chip" data-tone="warn"><i />REVIEW</span>)
+            ? (job.failed
+              ? <span className="stage-chip" data-tone="warn"><i />FAILED</span>
+              : job.outcome === "ready"
+                ? <span className="stage-chip" data-tone="ok"><i />READY</span>
+                : <span className="stage-chip" data-tone="warn"><i />REVIEW</span>)
             : started
               ? <span className="stage-chip" data-tone="run"><i />WORKING</span>
               : <span className="stage-chip" data-tone="wait"><i />QUEUED</span>}
@@ -701,22 +748,22 @@ function JobRow({ job, index, expanded, onToggle }: {
                 <div className="detail-card">
                   <h4>PATIENT (FROM LIVE PIS)</h4>
                   <ul>
-                    <li><b>RegNo</b><span>{job.scenario.patient.regno}</span></li>
-                    <li><b>Name</b><span>{job.scenario.patient.name}</span></li>
-                    <li><b>Age / Gender</b><span>{job.scenario.patient.age} / {job.scenario.patient.gender}</span></li>
-                    <li><b>Prescription</b><span>{job.scenario.prescription}</span></li>
+                    <li><b>RegNo</b><span>{job.patient?.regno ?? "-"}</span></li>
+                    <li><b>Name</b><span>{job.patient?.name ?? "-"}</span></li>
+                    <li><b>Age / Gender</b><span>{job.patient ? `${job.patient.age} / ${job.patient.gender}` : "-"}</span></li>
+                    <li><b>Prescription</b><span>{job.prescription || "-"}</span></li>
                   </ul>
                 </div>
                 <div className="detail-card">
                   <h4>MEDICINES (GROUNDED)</h4>
                   <ul>
-                    {job.scenario.medicines.map((medicine, medicineIndex) => (
+                    {job.medicines.map((medicine, medicineIndex) => (
                       <li key={`${medicine.text}-${medicineIndex}`}>
                         <b>{medicine.text}</b>
                         <span>confidence {(medicine.confidence * 100).toFixed(0)}%</span>
                       </li>
                     ))}
-                    {job.scenario.reviewReasons.map((reason) => (
+                    {job.reviewReasons.map((reason) => (
                       <li key={reason}><b className="review-flag">⚠ {reason}</b></li>
                     ))}
                   </ul>

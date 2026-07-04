@@ -10,6 +10,8 @@ type ReviewEntry = {
   photoName: string;
   photoUrl: string;
   index: number;
+  /** Backend job id; present when the batch ran through the live crew. */
+  jobId?: string | null;
   regno: string;
   patientName: string;
   age: string;
@@ -77,6 +79,8 @@ export default function ReviewSession({ params }: { params: Promise<{ id: string
   const [deckIndex, setDeckIndex] = useState(0);
   const [editing, setEditing] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [drag, setDrag] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const [flyOut, setFlyOut] = useState<Decision | null>(null);
@@ -187,6 +191,41 @@ export default function ReviewSession({ params }: { params: Promise<{ id: string
     const scale = 1 - offset * 0.045;
     const y = offset * 13;
     return { transform: `translateY(${y}px) scale(${scale})`, transition: "transform .3s ease" };
+  };
+
+  /** Queue every approved entry on the clinic PIS through the agent backend. */
+  const submitApproved = async () => {
+    if (!entries || submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    const approved = entries
+      .map((entry, index) => ({ entry, index }))
+      .filter(({ index }) => decisions[index] === "approved");
+    try {
+      for (const { entry } of approved) {
+        if (!entry.jobId) continue; // demo fallback entries have no live job
+        const response = await fetch(`/api/agent/jobs/${entry.jobId}/submit`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            form: {
+              regno: entry.regno,
+              patient_name: entry.patientName,
+              prescriptions: [{ text: entry.prescription }],
+              amount: null,
+            },
+          }),
+        });
+        if (!response.ok) {
+          throw new Error(`Queueing ${entry.patientName || "entry"} failed (${response.status})`);
+        }
+      }
+      setSubmitted(true);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Submitting failed. Try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const toggleDecision = (index: number) => {
@@ -438,13 +477,16 @@ export default function ReviewSession({ params }: { params: Promise<{ id: string
                 <button className="retro-button" onClick={undo} type="button">↺ Back to deck</button>
                 <button
                   className="retro-button primary-button run-button"
-                  disabled={approvedCount === 0}
-                  onClick={() => setSubmitted(true)}
+                  disabled={approvedCount === 0 || submitting}
+                  onClick={submitApproved}
                   type="button"
                 >
-                  Send {approvedCount} {approvedEntryLabel} to clinic queue
+                  {submitting ? "Queueing..." : `Send ${approvedCount} ${approvedEntryLabel} to clinic queue`}
                 </button>
               </div>
+              {submitError ? (
+                <p className="deck-flag" role="alert">⚠ {submitError}</p>
+              ) : null}
             </>
           )}
         </div>
@@ -452,7 +494,7 @@ export default function ReviewSession({ params }: { params: Promise<{ id: string
         <div className="window-statusbar">
           <span><i className="status-light" /> Human approval required</span>
           <span>Session #{id}</span>
-          <span>Demo data: live pipeline connects next</span>
+          <span>Approved entries queue for the clinic PIS</span>
         </div>
       </div>
     </main>
