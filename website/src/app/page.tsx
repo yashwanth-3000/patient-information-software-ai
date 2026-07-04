@@ -38,7 +38,6 @@ export default function Home() {
 
       <section className="hero shell" id="top">
         <div className="hero-copy">
-          <span className="system-label">PIS AUTOMATION CONSOLE / SAFE MODE</span>
           <h1>Patient information,<strong>without the repetitive work.</strong></h1>
           <p>
             A careful AI operator for the patient information system you already use.
@@ -48,7 +47,6 @@ export default function Home() {
             <a className="retro-button primary-button" href="#demo">Open demo <ArrowIcon /></a>
             <a className="retro-button" href="#safety">View safety controls</a>
           </div>
-          <div className="hero-status"><span className="status-light" /> SYSTEM READY <b>6 synthetic records loaded</b></div>
         </div>
 
         <div className="pis-window" aria-label="Synthetic Patient Information System preview">
