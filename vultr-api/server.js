@@ -4,46 +4,8 @@ const { URL } = require("node:url");
 const port = Number(process.env.PORT || 3000);
 const adminKey = process.env.ADMIN_KEY || "local-development-only";
 
-const seedJobs = Object.freeze([
-  {
-    id: "vultr-demo-patient-001",
-    clinic_id: "clinic-demo",
-    status: "approved",
-    patient: {
-      first_name: "APPDEMOONE",
-      last_name: "PATIENT",
-      age: 31,
-      gender: "M",
-      address: "VULTR DEMO 1",
-      first_visit: "2026-07-04"
-    },
-    prescriptions: [
-      {
-        text: "DEMO IMPORT FROM CLINICCLICK APP - NOT FOR TREATMENT",
-        date: "2026-07-04"
-      }
-    ]
-  },
-  {
-    id: "vultr-demo-patient-002",
-    clinic_id: "clinic-demo",
-    status: "approved",
-    patient: {
-      first_name: "APPDEMOTWO",
-      last_name: "PATIENT",
-      age: 42,
-      gender: "F",
-      address: "VULTR DEMO 2",
-      first_visit: "2026-07-04"
-    },
-    prescriptions: [
-      {
-        text: "DEMO SECOND IMPORT - NOT FOR TREATMENT",
-        date: "2026-07-04"
-      }
-    ]
-  }
-]);
+// Only entries approved in the agent review UI reach the PIS queue.
+const seedJobs = Object.freeze([]);
 
 let importedIds = new Set();
 
