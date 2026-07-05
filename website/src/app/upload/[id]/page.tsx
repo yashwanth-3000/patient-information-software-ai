@@ -188,6 +188,47 @@ function saveReviewPayload(id: string, jobs: Job[]) {
   } catch { /* storage full: review page falls back to demo data */ }
 }
 
+/**
+ * Downscale + re-encode a photo to JPEG before upload.
+ *
+ * Raw phone captures are 4-12 MB (Vercel rejects bodies over ~4.5 MB) and can
+ * be HEIC (which the OCR model rejects). Drawing onto a canvas fixes both:
+ * the browser decodes whatever format it captured and we ship a small JPEG.
+ */
+async function compressPhoto(blob: Blob, name: string): Promise<{ blob: Blob; name: string }> {
+  const MAX_EDGE = 1800;
+  // Already small and in a format the OCR accepts: ship untouched, because
+  // every re-encode costs handwriting legibility.
+  if (blob.size < 3_500_000 && /image\/(jpeg|png|webp)/.test(blob.type)) {
+    return { blob, name };
+  }
+  try {
+    const url = URL.createObjectURL(blob);
+    try {
+      const image = document.createElement("img");
+      image.src = url;
+      await image.decode();
+      const scale = Math.min(1, MAX_EDGE / Math.max(image.naturalWidth, image.naturalHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("no canvas context");
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const jpeg = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, "image/jpeg", 0.85),
+      );
+      if (!jpeg || jpeg.size === 0) throw new Error("encode failed");
+      return { blob: jpeg, name: name.replace(/\.[^.]+$/, "") + ".jpg" };
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  } catch {
+    // Could not decode (rare) - send the original and let the backend try.
+    return { blob, name };
+  }
+}
+
 /** Parse an SSE byte stream, invoking onEvent per `data:` payload. */
 async function consumeSse(response: Response, onEvent: (data: Record<string, unknown>) => void) {
   const reader = response.body?.getReader();
@@ -311,54 +352,90 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
 
   /** Run one photo through the live crew and stream its activity. */
   const runOne = useCallback(async (jobIndex: number, photo: Photo) => {
-    const blob = photo.file ?? await (await fetch(photo.url)).blob();
+    patchJob(jobIndex, { stage: "Preparing photo", stageTone: "run", progress: 2 });
+    const raw = photo.file ?? await (await fetch(photo.url)).blob();
+    const { blob, name } = await compressPhoto(raw, photo.name);
     const body = new FormData();
-    body.append("file", blob, photo.name);
+    body.append("file", blob, name);
 
     patchJob(jobIndex, { stage: "Uploading", stageTone: "run", progress: 4 });
     const created = await fetch("/api/agent/scripts", { method: "POST", body });
-    if (!created.ok) throw new Error(`Upload failed (${created.status})`);
+    if (!created.ok) {
+      throw new Error(created.status === 413
+        ? "Photo too large for upload - please retry"
+        : `Upload failed (${created.status})`);
+    }
     const { job_id: jobId } = await created.json() as { job_id: string };
     patchJob(jobIndex, { jobId });
 
-    const stream = await fetch(`/api/agent/jobs/${jobId}/stream`, {
-      headers: { accept: "text/event-stream" },
-      cache: "no-store",
-    });
-    if (!stream.ok) throw new Error(`Stream failed (${stream.status})`);
+    const applyResult = (form: EntryForm) => {
+      const digest = digestForm(form);
+      patchJob(jobIndex, {
+        form,
+        ...digest,
+        stage: digest.outcome === "ready" ? "Ready for entry" : "Needs review",
+        stageTone: digest.outcome === "ready" ? "ok" : "warn",
+        progress: 100,
+        done: true,
+      });
+    };
 
-    let seenSteps = 0;
-    await consumeSse(stream, (data) => {
-      if (data.type === "agent_activity") {
-        const agent = AGENT_FROM_BACKEND[String(data.agent)] ?? "composer";
-        const status = (["started", "progress", "completed", "error"].includes(String(data.status))
-          ? String(data.status)
-          : "progress") as ActivityEvent["status"];
-        pushEvent(jobIndex, agent, status, String(data.message ?? ""));
-        seenSteps += 1;
-        patchJob(jobIndex, {
-          stage: AGENT_LABELS[agent],
-          stageTone: "run",
-          progress: Math.min(96, 5 + seenSteps * 6),
-        });
-      } else if (data.type === "result") {
-        const form = data.form as EntryForm;
-        const digest = digestForm(form);
-        patchJob(jobIndex, {
-          form,
-          ...digest,
-          stage: digest.outcome === "ready" ? "Ready for entry" : "Needs review",
-          stageTone: digest.outcome === "ready" ? "ok" : "warn",
-          progress: 100,
-          done: true,
-        });
-      } else if (data.type === "error") {
-        throw new Error(String(data.message ?? "Pipeline failed"));
+    /* Live SSE stream through the Vercel proxy. Mobile browsers drop these
+       streams freely (screen lock, network switch, proxy limits), so any
+       stream failure falls through to polling below instead of failing. */
+    let pipelineError: string | null = null;
+    try {
+      const stream = await fetch(`/api/agent/jobs/${jobId}/stream`, {
+        headers: { accept: "text/event-stream" },
+        cache: "no-store",
+      });
+      if (!stream.ok) throw new Error(`Stream failed (${stream.status})`);
+
+      let seenSteps = 0;
+      await consumeSse(stream, (data) => {
+        if (data.type === "agent_activity") {
+          const agent = AGENT_FROM_BACKEND[String(data.agent)] ?? "composer";
+          const status = (["started", "progress", "completed", "error"].includes(String(data.status))
+            ? String(data.status)
+            : "progress") as ActivityEvent["status"];
+          pushEvent(jobIndex, agent, status, String(data.message ?? ""));
+          seenSteps += 1;
+          patchJob(jobIndex, {
+            stage: AGENT_LABELS[agent],
+            stageTone: "run",
+            progress: Math.min(96, 5 + seenSteps * 6),
+          });
+        } else if (data.type === "result") {
+          applyResult(data.form as EntryForm);
+        } else if (data.type === "error") {
+          pipelineError = String(data.message ?? "Pipeline failed");
+        }
+      });
+    } catch { /* stream dropped - recover via polling */ }
+
+    if (pipelineError) throw new Error(pipelineError);
+    if (jobsRef.current[jobIndex]?.done) return;
+
+    /* Fallback: the backend keeps running even when the stream dies. Poll the
+       job until the crew finishes (a full script takes up to ~2 minutes). */
+    patchJob(jobIndex, { stage: "Reconnecting", stageTone: "run" });
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      let job: { status?: string; error?: string; form?: EntryForm } | null = null;
+      try {
+        const response = await fetch(`/api/agent/jobs/${jobId}`, { cache: "no-store" });
+        if (!response.ok) continue;
+        job = await response.json();
+      } catch { continue; }
+      if (!job) continue;
+      if (job.status === "failed") throw new Error(job.error || "Pipeline failed");
+      if (job.form) {
+        pushEvent(jobIndex, "composer", "completed", "Connection recovered - entry retrieved from the crew.");
+        applyResult(job.form);
+        return;
       }
-    });
-
-    const finished = jobsRef.current[jobIndex];
-    if (!finished?.done) throw new Error("Stream ended before the crew finished");
+    }
+    throw new Error("Lost connection to the crew - reopen this session to retry.");
   }, [patchJob, pushEvent]);
 
   const runAgents = async () => {
