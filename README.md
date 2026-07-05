@@ -2,9 +2,23 @@
 
 **An enterprise agent crew that reads a doctor's handwritten prescriptions and files them into his real 20-year-old clinic software - built for the Vultr Enterprise Agent track at RAISE Summit Hackathon 2026.**
 
-- **Live app:** <https://pis-ai.vercel.app>
+- **Live app:** [https://pis-ai.vercel.app](https://pis-ai.vercel.app)
 - **Track:** Vultr - Enterprise Agent for a real-world workflow, grounded in documents
 - **Every LLM workload runs on Vultr Serverless Inference** (agent reasoning + VultronRetriever grounding), and the entire backend is hosted on **Vultr Compute**.
+
+## Videos
+
+### Complete demo video
+
+*The full story in one minute - the clinic, the agent crew, and the entry landing inside the 20-year-old PIS.*
+
+[![Complete demo video](https://img.youtube.com/vi/dV-YGESVPkc/maxresdefault.jpg)](https://youtu.be/dV-YGESVPkc)
+
+### Real-time run (unedited)
+
+*A raw, uncut run: photo to approved entry inside the real Patient Information System.*
+
+[![Real-time run inside the PIS](https://img.youtube.com/vi/BYeQ0jye7nU/hqdefault.jpg)](https://youtu.be/BYeQ0jye7nU)
 
 ---
 
@@ -20,13 +34,15 @@ Now the workflow is: **take a photo → agents process it → a human approves w
 
 The Vultr track asks for a multi-step workflow where the system **plans, retrieves more than once, calls tools, makes decisions, and produces an outcome a real enterprise team could use**. That is exactly what happens for every single script:
 
-| # | Agent | What it does | Model (all via Vultr Serverless Inference unless noted) |
-|---|-------|--------------|-------|
-| 1 | **Script OCR Reader** | Reads the handwritten script and proposes **alternates for every ambiguous digit** (this doctor's 2s look like 9s, his trailing 7s look like Fs) | GPT-4o Vision (perception input) |
-| 2 | **Script Intake Agent** | Normalizes the raw reading into structured fields: RegNo candidates, name, medicine lines, duration, complaints | DeepSeek-V4-Flash |
-| 3 | **Patient Records Agent** | **Retrieves repeatedly**: queries the clinic's live patient database through the PIS API bridge, and if the name doesn't fit, probes digit-confusion variants of the RegNo until the identity actually checks out | DeepSeek-V4-Flash + live PIS lookup tool |
-| 4 | **Homeopathy Pharmacist** | **Grounds every medicine line** against a homeopathy remedy corpus using **VultronRetriever rerank** - shorthand like "CF 30 HS" becomes "Calcarea Fluorica 30C - at bedtime", with a citation | vultr/VultronRetrieverPrime-Qwen3.5-8B |
-| 5 | **Entry Composer Agent** | Composes the final PIS entry and **decides**: ready for entry, or flagged for human review with explicit reasons | DeepSeek-V4-Flash |
+
+| #   | Agent                     | What it does                                                                                                                                                                                                      | Model (all via Vultr Serverless Inference unless noted) |
+| --- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| 1   | **Script OCR Reader**     | Reads the handwritten script and proposes **alternates for every ambiguous digit** (this doctor's 2s look like 9s, his trailing 7s look like Fs)                                                                  | GPT-4o Vision (perception input)                        |
+| 2   | **Script Intake Agent**   | Normalizes the raw reading into structured fields: RegNo candidates, name, medicine lines, duration, complaints                                                                                                   | DeepSeek-V4-Flash                                       |
+| 3   | **Patient Records Agent** | **Retrieves repeatedly**: queries the clinic's live patient database through the PIS API bridge, and if the name doesn't fit, probes digit-confusion variants of the RegNo until the identity actually checks out | DeepSeek-V4-Flash + live PIS lookup tool                |
+| 4   | **Homeopathy Pharmacist** | **Grounds every medicine line** against a homeopathy remedy corpus using **VultronRetriever rerank** - shorthand like "CF 30 HS" becomes "Calcarea Fluorica 30C - at bedtime", with a citation                    | vultr/VultronRetrieverPrime-Qwen3.5-8B                  |
+| 5   | **Entry Composer Agent**  | Composes the final PIS entry and **decides**: ready for entry, or flagged for human review with explicit reasons                                                                                                  | DeepSeek-V4-Flash                                       |
+
 
 **The grounding rule is absolute: no value is ever invented.** Every field in the final entry traces to OCR evidence, a live database record, or a corpus citation. If a medicine can't be cited, it stays as raw text and the entry is flagged for review.
 
@@ -79,12 +95,14 @@ Try it yourself on the live site: open **Upload → "I want to test it"**, pick 
 
 ## Repository layout
 
-| Path | What it is |
-|------|-----------|
+
+| Path             | What it is                                                                                                                                                                                                                                                                             |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `agent-backend/` | Python FastAPI + CrewAI agent pipeline. `crew_runner.py` is the five-agent workflow, `tools.py` holds the OCR prompt, PIS lookup and VultronRetriever grounding tools, `vultr_llm.py` is the Vultr Serverless Inference adapter, `data/remedies.json` is the homeopathy remedy corpus. |
-| `website/` | Next.js app (Vercel): retro Win7-styled UI, upload sessions, live agent activity stream, Tinder-style review deck, and the HTTPS→HTTP proxy route. |
-| `vultr-api/` | Dependency-free Node.js relay on Vultr Compute: clinic import queue + real-time patient lookup relay between the web agents and the Windows PIS. |
-| `pis-plugin/` | C# plugin + Mono.Cecil patcher that gives the legacy PIS its API bridge and import tab. |
+| `website/`       | Next.js app (Vercel): retro Win7-styled UI, upload sessions, live agent activity stream, Tinder-style review deck, and the HTTPS→HTTP proxy route.                                                                                                                                     |
+| `vultr-api/`     | Dependency-free Node.js relay on Vultr Compute: clinic import queue + real-time patient lookup relay between the web agents and the Windows PIS.                                                                                                                                       |
+| `pis-plugin/`    | C# plugin + Mono.Cecil patcher that gives the legacy PIS its API bridge and import tab.                                                                                                                                                                                                |
+
 
 ## Running it
 
