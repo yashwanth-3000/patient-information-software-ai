@@ -8,17 +8,10 @@
 
 ## Videos
 
-### Complete demo video
-
-*The full story in one minute - the clinic, the agent crew, and the entry landing inside the 20-year-old PIS.*
-
-[![Complete demo video](https://img.youtube.com/vi/dV-YGESVPkc/maxresdefault.jpg)](https://youtu.be/dV-YGESVPkc)
-
-### Real-time run (unedited)
-
-*A raw, uncut run: photo to approved entry inside the real Patient Information System.*
-
-[![Real-time run inside the PIS](https://img.youtube.com/vi/BYeQ0jye7nU/hqdefault.jpg)](https://youtu.be/BYeQ0jye7nU)
+| Complete demo video | Real-time run (unedited) |
+|:---:|:---:|
+| [![Complete demo video](https://img.youtube.com/vi/dV-YGESVPkc/mqdefault.jpg)](https://youtu.be/dV-YGESVPkc) | [![Real-time run inside the PIS](https://img.youtube.com/vi/BYeQ0jye7nU/mqdefault.jpg)](https://youtu.be/BYeQ0jye7nU) |
+| *The full story in one minute* | *Raw, uncut: photo to entry inside the real PIS* |
 
 ---
 
