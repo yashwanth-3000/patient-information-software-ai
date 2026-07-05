@@ -49,11 +49,15 @@ const AGENT_MODELS: Record<AgentKey, string> = {
   composer: "DeepSeek-V4-Flash · Vultr",
 };
 
-const SAMPLE_SCRIPTS = [
-  { name: "sample-script-1.jpg", url: "/demo-scripts/script-0207.jpg" },
-  { name: "sample-script-2.jpg", url: "/demo-scripts/script-0209.jpg" },
-  { name: "sample-script-3.jpg", url: "/demo-scripts/script-0210.jpg" },
-  { name: "sample-script-4.jpg", url: "/demo-scripts/script-0211.jpg" },
+/** Real prescriptions from the clinic, photographed by the doctor's family. */
+const ORIGINAL_SCRIPTS = [
+  { name: "original-script-3183.jpg", url: "/original-scripts/script-3183.jpg", label: "Script A" },
+  { name: "original-script-3186.jpg", url: "/original-scripts/script-3186.jpg", label: "Script B" },
+  { name: "original-script-3188.jpg", url: "/original-scripts/script-3188.jpg", label: "Script C" },
+  { name: "original-script-3189.jpg", url: "/original-scripts/script-3189.jpg", label: "Script D" },
+  { name: "original-script-3190.jpg", url: "/original-scripts/script-3190.jpg", label: "Script E" },
+  { name: "original-script-3191.jpg", url: "/original-scripts/script-3191.jpg", label: "Script F" },
+  { name: "original-script-3192.jpg", url: "/original-scripts/script-3192.jpg", label: "Script G" },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -216,6 +220,8 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
   const [phase, setPhase] = useState<"capture" | "processing" | "done">("capture");
   const [expanded, setExpanded] = useState<number | null>(null);
   const [logsOpen, setLogsOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   const fileInput = useRef<HTMLInputElement>(null);
   const eventCounter = useRef(0);
   const jobsRef = useRef<Job[]>([]);
@@ -241,21 +247,31 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
     });
   }, [id]);
 
-  const addSamples = () => {
+  const togglePicked = (name: string) => {
+    setPicked((current) => {
+      const next = new Set(current);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      return next;
+    });
+  };
+
+  const addPicked = () => {
     setPhotos((current) => {
       const have = new Set(current.map((photo) => photo.name));
-      const additions = SAMPLE_SCRIPTS
-        .filter((sample) => !have.has(sample.name))
-        .map((sample, index) => ({
-          id: `sample-${Date.now()}-${index}`,
-          name: sample.name,
-          url: sample.url,
+      const additions = ORIGINAL_SCRIPTS
+        .filter((script) => picked.has(script.name) && !have.has(script.name))
+        .map((script, index) => ({
+          id: `original-${Date.now()}-${index}`,
+          name: script.name,
+          url: script.url,
           file: null,
         }));
       const next = [...current, ...additions];
       touchSession(id, { photoCount: next.length });
       return next;
     });
+    setPickerOpen(false);
+    setPicked(new Set());
   };
 
   const removePhoto = (photoId: string) => {
@@ -478,12 +494,12 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
                     <span className="zone-or">OR</span>
                     <button
                       className="retro-button"
-                      onClick={(event) => { event.stopPropagation(); addSamples(); }}
+                      onClick={(event) => { event.stopPropagation(); setPickerOpen(true); }}
                       type="button"
                     >
-                      Load sample scripts
+                      I want to test it
                     </button>
-                    <small>4 sample handwritten scripts for testing</small>
+                    <small>Pick from real prescriptions written by the doctor</small>
                   </div>
 
                   <div className="tray">
@@ -655,6 +671,80 @@ export default function UploadSession({ params }: { params: Promise<{ id: string
           <span>Live crew on Vultr Serverless Inference</span>
         </div>
       </div>
+
+      {pickerOpen ? (
+        <div
+          className="deck-modal-backdrop"
+          onClick={(event) => { if (event.target === event.currentTarget) setPickerOpen(false); }}
+          role="presentation"
+        >
+          <div aria-label="Pick real prescriptions" className="deck-modal picker-modal" role="dialog">
+            <div className="window-titlebar">
+              <span className="window-app-icon">P</span>
+              <span>Real prescriptions from the clinic</span>
+              <div className="window-controls">
+                <i aria-hidden="true">_</i>
+                <i aria-hidden="true">□</i>
+                <button aria-label="Close picker" className="close" onClick={() => setPickerOpen(false)} type="button">×</button>
+              </div>
+            </div>
+            <div className="picker-body">
+              <p className="picker-hint">
+                Handwritten by the doctor, photographed at the clinic. Pick one or select all -
+                the crew reads them exactly like fresh camera photos.
+              </p>
+              <div className="picker-grid">
+                {ORIGINAL_SCRIPTS.map((script) => {
+                  const selected = picked.has(script.name);
+                  const alreadyIn = photos.some((photo) => photo.name === script.name);
+                  return (
+                    <button
+                      aria-pressed={selected}
+                      className="picker-card"
+                      data-selected={selected || undefined}
+                      disabled={alreadyIn}
+                      key={script.name}
+                      onClick={() => togglePicked(script.name)}
+                      type="button"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img alt={script.label} src={script.url} />
+                      <span className="picker-card-foot">
+                        <b>{script.label}</b>
+                        <i className="picker-check" aria-hidden="true">{alreadyIn ? "IN TRAY" : selected ? "✓" : ""}</i>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="picker-foot">
+              <button
+                className="retro-button"
+                onClick={() => {
+                  const all = ORIGINAL_SCRIPTS
+                    .filter((script) => !photos.some((photo) => photo.name === script.name))
+                    .map((script) => script.name);
+                  setPicked(new Set(all));
+                }}
+                type="button"
+              >
+                Select all
+              </button>
+              <span className="spacer" />
+              <button className="retro-button" onClick={() => setPickerOpen(false)} type="button">Cancel</button>
+              <button
+                className="retro-button primary-button"
+                disabled={picked.size === 0}
+                onClick={addPicked}
+                type="button"
+              >
+                Add {picked.size > 0 ? `${picked.size} ` : ""}to tray
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

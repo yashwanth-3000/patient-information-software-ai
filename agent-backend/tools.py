@@ -52,22 +52,23 @@ LAYOUT (almost always the same):
 - Middle: medicine lines, sometimes split into circled sections (1), (2) meaning packet/bottle 1, packet/bottle 2. Keep the section number with its medicines.
 - Bottom: a duration for the course ("one month", "15 days") and the amount to pay, a plain underlined/circled number like 300, 650, 280 (sometimes "Rs = 280"). The amount is money, NOT a medicine.
 
-STRUCK-THROUGH TEXT: anything crossed out with a line or scribbled over was CANCELLED by the doctor. Do not include it in medicines; mention it in other_text only.
+STRUCK-THROUGH TEXT: anything crossed out with a line THROUGH the letters or scribbled over was CANCELLED by the doctor. Do not include it in medicines; mention it in cancelled_text only. A line UNDER the text is an underline (emphasis), NOT a cancellation - underlined medicines are valid. A curly brace or "(Mix)" next to two lines means those remedies are mixed together - both are valid medicines. IMPORTANT: when only the FIRST word of a line is struck through and different writing continues right after it on the same line, the doctor corrected himself mid-line - the continuation IS a valid medicine (e.g. a crossed-out "Aes" followed by "CF 30 HS" means the medicine is CF 30 HS). Only drop the crossed-out part, never the replacement.
 
 SHORTHAND DICTIONARY (this clinic's habits):
 - "SL" (often looks like "8L", "S.L.", or a fancy S) = Sac Lac placebo pills. Extremely common, appears in most scripts.
 - Biochemic salts written as letters + X potency: "CF 6X" = Calc Fluor, "KP 6X" = Kali Phos, "MP 6X" = Mag Phos, "CP" = Calc Phos, "NP" = Nat Phos. "comp"/"compo" after one means compound tablets. "(TB)" or "TAB" = tablets.
 - "B-" plus a number ("B-16", "B-28") = Bio-Combination tablet number.
-- Proprietary items: "Y-lax" (laxative tablets, may look like "ylox"/"Yhox"), "Thyr 3X"/"Thy 3X" (Thyroidinum), "Phyto Berry"/"Phytolacca Berry" (weight tablets).
-- Remedy + potency: "Ruta 30", "Bry 30", "Rat 200", "Caust 30", "Aesc 30", "Coloc 200", "Bell 30". Potencies: 6, 30, 200, 1M, 6X, 12X, 3X, Q.
+- Proprietary items: "Y-lax" (laxative tablets, may look like "ylox"/"Yhox"), "Thyr 3X"/"Thy 3X" (Thyroidinum), "Phyto Berry"/"Phytolacca Berry" (weight tablets), "Allerex 2-2" (anti-allergy tablets, may look like "Allope"/"Allere").
+- Combined shorthand: "MPCF 6X" is ONE token meaning Mag Phos + Calc Fluor compound tablets; "Ruta Hyp 30" pairs Ruta with Hypericum. Keep such combos as written and expand both names.
+- Remedy + potency: "Ruta 30", "Bry 30", "Rat 200", "Caust 30", "Aesc 30", "Coloc 200"/"CC 200" (Colocynth), "Bell 30", "Bellis Per 30" (Bellis Perennis, NOT Belladonna), "Sars Q"/"Sarsaparilla Q" (renal stone cases, cursive can look like "Scorasapari"/"Sarcsapari"). Potencies: 6, 30, 200, 1M, 6X, 12X, 3X, Q.
 - "(HS)" = at bedtime, "(TD)"/"TDS" = three times a day, "BD" = twice a day, "2-2-2" = pills morning-noon-night, "4-6" = pill counts, "1/2 oz" or dram marks = liquid quantity, "drops"/"dous" = drops, "1 fl" = one fluid (bottle).
 - "c/o" = complains of (a symptom note, not a medicine). Notes like "in water", "apply" (external use), "ear sound", "acidity" are instructions/complaints - put them in dosage or other_text, not as medicines.
 - A number like "15 in course" = quantity for the course.
 
 READ CAREFULLY:
 - Curly capital S at a line start is usually "SL". A line that is just squiggles repeated (like SL written twice) is two SL doses for different packets.
-- Digits are sloppy: 2/3, 2/9, 4/9, 7/9, 0/6, 4/6, 3/5, 6/8, 0/8 confusions are common. IMPORTANT: this doctor's "2" has a long curled tail and is constantly mistaken for "9" - whenever you read a 9 in the RegNo (especially as the first digit), ALWAYS include the same number with 2 in that position as an alternate, and vice versa. Give alternates for every ambiguous digit in the RegNo - the RegNo is the single most important field.
-- Names are Indian (Telugu): prefer readings like Sunitha, Bharathi, Shilaja, Krishnamurthy, Rama Rao, Varalakshmi over non-Indian words.
+- Digits are sloppy: 2/3, 2/9, 4/9, 7/9, 0/6, 4/6, 3/5, 6/8, 0/8, 5/7, 1/7 confusions are common. IMPORTANT: this doctor's "2" has a long curled tail and is constantly mistaken for "9" - whenever you read a 9 in the RegNo (especially as the first digit), ALWAYS include the same number with 2 in that position as an alternate, and vice versa. His final "7" often has a hooked tail that looks like an "F", "f" or "5" - if the RegNo seems to end in a letter-like glyph or a 5, add the 7-ending as an alternate. Give alternates for every ambiguous digit in the RegNo - the RegNo is the single most important field.
+- Names are Indian (Telugu/Urdu): prefer readings like Sunitha, Bharathi, Shilaja, Krishnamurthy, Rama Rao, Varalakshmi, Ramesh, Vijaya, Arhaan, Saleem Ahemad over non-Indian words. Cursive names are hard - give 1-2 alternates for the name whenever letters are ambiguous.
 - Do not turn stray marks, underlines or the amount into medicines. If a line is illegible, still include it with your best guess, low confidence, and note it.
 
 Return STRICT JSON only, no markdown fences:
@@ -156,20 +157,40 @@ def lookup_patient(regno: str) -> Dict[str, Any]:
 
 def match_remedy(query: str, top_n: int = 3) -> List[Dict[str, Any]]:
     """Ground a handwritten medicine line against the remedy corpus using
-    VultronRetriever rerank on Vultr Serverless Inference."""
+    VultronRetriever rerank on Vultr Serverless Inference.
+
+    Vultr occasionally answers a transient 5xx; retry with backoff instead of
+    failing the whole script."""
+    import time
+
     api_key = os.environ.get("VULTR_INFERENCE_API_KEY", "")
     documents = remedy_documents()
-    response = requests.post(
-        VULTR_RERANK_URL,
-        timeout=30,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json={"model": RERANK_MODEL, "query": query, "documents": documents},
-    )
-    if response.status_code != 200:
-        raise RuntimeError(f"Rerank failed: {response.status_code} {response.text[:300]}")
+    response = None
+    last_error = ""
+    for attempt in range(4):
+        if attempt:
+            time.sleep(2 * attempt)
+        try:
+            response = requests.post(
+                VULTR_RERANK_URL,
+                timeout=45,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={"model": RERANK_MODEL, "query": query, "documents": documents},
+            )
+        except requests.RequestException as error:
+            last_error = str(error)
+            response = None
+            continue
+        if response.status_code == 200:
+            break
+        last_error = f"{response.status_code} {response.text[:300]}"
+        if response.status_code < 500 and response.status_code != 429:
+            break
+    if response is None or response.status_code != 200:
+        raise RuntimeError(f"Rerank failed after retries: {last_error}")
     results = response.json().get("results", [])
     ranked = sorted(results, key=lambda item: item["relevance_score"], reverse=True)
     matches = []

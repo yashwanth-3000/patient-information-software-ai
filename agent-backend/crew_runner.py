@@ -163,7 +163,11 @@ def run_script_pipeline(ocr_result: Dict[str, Any], emit: Emit) -> Dict[str, Any
             "surname and initials. If the script name clearly corresponds to the "
             "first name of the found PIS record (allowing 1-2 letter spelling drift "
             "and a missing surname), that IS a match - do not call it a mismatch "
-            "just because the PIS name has extra parts. When the script has no "
+            "just because the PIS name has extra parts. Remember the script name is "
+            "itself an OCR guess of cursive handwriting: if the PRIMARY candidate's "
+            "record name is phonetically close to the script reading (same length, "
+            "most consonants shared in order, e.g. OCR 'Ashany' vs PIS 'Arhaan'), "
+            "treat it as matched with a modest score. When the script has no "
             "patient name, a found PIS record for the primary candidate counts as "
             "matched (the RegNo is the identity). Use 'mismatch' ONLY when the "
             "PRIMARY candidate's record was found but its name genuinely disagrees "
@@ -220,7 +224,13 @@ def run_script_pipeline(ocr_result: Dict[str, Any], emit: Emit) -> Dict[str, Any
             continue
         expanded = str(medicine.get("expanded") or "").strip()
         query = f"{raw} ({expanded})" if expanded and expanded.lower() != raw.lower() else raw
-        matches = tools.match_remedy(query)
+        try:
+            matches = tools.match_remedy(query)
+        except Exception as error:  # transient rerank outage must not kill the script
+            matches = []
+            emit("pharmacist", "progress",
+                 f"Line {index + 1} \"{raw}\": corpus rerank unavailable, leaving raw text for review.",
+                 {"raw_text": raw, "error": str(error)})
         grounded.append({"raw_text": raw, "expanded": expanded or None,
                          "dosage": medicine.get("dosage"), "corpus_matches": matches})
         top = matches[0]["name"] if matches else "no match"
@@ -367,23 +377,32 @@ def fallback_intake(ocr_result: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-CONFUSABLE_DIGITS = {"9": "2", "2": "9", "8": "6", "6": "8", "0": "6", "4": "9", "7": "9", "3": "5", "5": "3"}
+CONFUSABLE_DIGITS = {
+    "9": ["2", "7", "4"],
+    "2": ["9", "3"],
+    "8": ["6", "0"],
+    "6": ["8", "0", "4"],
+    "0": ["6", "8"],
+    "4": ["9", "6"],
+    "7": ["9", "5", "1"],
+    "1": ["7"],
+    "3": ["5", "2"],
+    "5": ["3", "7"],
+}
 
 
-def digit_confusion_variants(regno: str, exclude: set, limit: int = 6) -> List[str]:
+def digit_confusion_variants(regno: str, exclude: set, limit: int = 8) -> List[str]:
     """RegNos one confusable digit away from the OCR's primary reading,
     most-significant digit first (that is where misreads hurt the most)."""
     regno = "".join(ch for ch in str(regno) if ch.isdigit())
     variants: List[str] = []
     for position, digit in enumerate(regno):
-        swap = CONFUSABLE_DIGITS.get(digit)
-        if not swap:
-            continue
-        variant = regno[:position] + swap + regno[position + 1:]
-        if variant not in exclude and variant not in variants:
-            variants.append(variant)
-        if len(variants) >= limit:
-            break
+        for swap in CONFUSABLE_DIGITS.get(digit, []):
+            variant = regno[:position] + swap + regno[position + 1:]
+            if variant not in exclude and variant not in variants:
+                variants.append(variant)
+            if len(variants) >= limit:
+                return variants
     return variants
 
 

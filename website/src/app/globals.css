@@ -290,6 +290,30 @@ button.sub-title-toggle:hover { background: linear-gradient(#ffffff 0%, #eef6fc 
 .deck-stamp.approve { right: 18px; color: #1e8a46; border-color: #1e8a46; transform: rotate(11deg); }
 .deck-stamp.skip { left: 18px; color: #c0392b; border-color: #c0392b; transform: rotate(-11deg); }
 /* Edit popup: retro dialog over the deck */
+/* Original prescription picker */
+.picker-modal { width: min(720px, 100%); }
+.picker-body { padding: 12px 14px 4px; overflow-y: auto; }
+.picker-hint { margin: 0 0 11px; color: #4f6170; font-size: 12px; line-height: 1.55; }
+.picker-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+.picker-card { position: relative; display: flex; flex-direction: column; padding: 5px 5px 0; border: 2px solid #9ca6ad; border-radius: 4px; background: white; cursor: pointer; font-family: inherit; box-shadow: inset 0 1px white, 0 1px 3px #22384a1a; transition: border-color .12s, transform .08s, box-shadow .12s; }
+.picker-card:hover:not(:disabled) { border-color: #4b83ab; transform: translateY(-1px); }
+.picker-card:active:not(:disabled) { transform: translateY(0); }
+.picker-card img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border: 1px solid #c6ced4; border-radius: 2px; background: #eef1f3; }
+.picker-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 6px 2px; font-size: 11px; }
+.picker-card-foot b { font-weight: 700; color: #24435c; }
+.picker-check { min-width: 18px; height: 18px; display: inline-grid; place-items: center; border-radius: 50%; font-style: normal; font-size: 11px; color: transparent; }
+.picker-card[data-selected] { border-color: #0d72b9; box-shadow: 0 0 0 2px #0d72b933, inset 0 1px white; }
+.picker-card[data-selected] .picker-check { background: #0d72b9; color: white; }
+.picker-card:disabled { cursor: default; opacity: .55; }
+.picker-card:disabled .picker-check { color: #248044; font-size: 8.5px; font-weight: 700; letter-spacing: .04em; min-width: auto; }
+.picker-foot { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid #aab5be; background: #eceff1; }
+@media (max-width: 650px) {
+  .picker-grid { grid-template-columns: repeat(2, 1fr); }
+  .picker-modal { max-height: calc(100dvh - 24px); }
+  .picker-foot { flex-wrap: wrap; }
+  .picker-foot .retro-button { flex: 1 1 auto; min-width: 0; width: auto; }
+}
+
 @keyframes backdrop-in { from { opacity: 0; } to { opacity: 1; } }
 .deck-modal-backdrop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: #10283ca8; backdrop-filter: blur(2px); animation: backdrop-in .18s ease-out both; }
 .deck-modal { display: flex; flex-direction: column; width: min(560px, 100%); max-height: min(760px, calc(100dvh - 32px)); border: 1px solid #24425a; border-radius: 7px 7px 2px 2px; background: var(--chrome); box-shadow: 0 0 0 1px #ffffff59 inset, 0 18px 44px #05141f8f; overflow: hidden; animation: window-open .28s cubic-bezier(.2, .9, .3, 1.05) both; }
