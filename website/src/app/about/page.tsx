@@ -319,12 +319,20 @@ export default function AboutPage() {
           <p className={styles.ctaBannerKicker}>Try it yourself</p>
           <h2 className={styles.ctaBannerTitle}>Watch the crew read a real script.</h2>
           <p className={styles.ctaBannerBody}>
-            Upload a prescription photo and watch every agent decision stream live - OCR
-            alternates, live database lookups, corpus citations, and the final composed entry.
+            Pick one of the doctor&apos;s real handwritten prescriptions - or upload your own
+            photo - and watch every agent decision stream live: OCR alternates, live database
+            lookups, corpus citations, and the final composed entry.
           </p>
           <div className={styles.ctaBannerActions}>
             <Link href="/upload" className={styles.ctaPrimary}>Open the demo</Link>
-            <Link href="/" className={styles.ctaSecondary}>Back to home</Link>
+            <a
+              href="https://youtu.be/dV-YGESVPkc"
+              className={styles.ctaSecondary}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Watch the 1-min video
+            </a>
           </div>
         </div>
       </article>
