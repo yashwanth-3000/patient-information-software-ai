@@ -8,7 +8,7 @@
 
 ## Videos
 
-| Complete demo video | Real-time run (unedited) |
+| [▶ Complete demo video](https://youtu.be/dV-YGESVPkc) | [▶ Real-time run (unedited)](https://youtu.be/BYeQ0jye7nU) |
 |:---:|:---:|
 | [![Complete demo video](https://img.youtube.com/vi/dV-YGESVPkc/mqdefault.jpg)](https://youtu.be/dV-YGESVPkc) | [![Real-time run inside the PIS](https://img.youtube.com/vi/BYeQ0jye7nU/mqdefault.jpg)](https://youtu.be/BYeQ0jye7nU) |
 | *The full story in one minute* | *Raw, uncut: photo to entry inside the real PIS* |
