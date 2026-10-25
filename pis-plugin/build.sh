@@ -67,7 +67,7 @@ for child in list(settings):
         settings.remove(child)
 ET.SubElement(settings, "add", {
     "key": "ClinicClickApiUrl",
-    "value": "http://65.20.78.208",
+    "value": "https://api-production-2579.up.railway.app",
 })
 
 tree.write(destination, encoding="utf-8", xml_declaration=True)

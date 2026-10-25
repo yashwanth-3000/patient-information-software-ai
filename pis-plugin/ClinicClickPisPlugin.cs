@@ -58,19 +58,84 @@ namespace ClinicClick.PisPlugin
         public string Date;
     }
 
-    internal sealed class TimeoutWebClient : WebClient
+    internal sealed class TimeoutWebClient : IDisposable
     {
-        protected override WebRequest GetWebRequest(Uri address)
+        public Encoding Encoding = Encoding.UTF8;
+        public readonly WebHeaderCollection Headers = new WebHeaderCollection();
+
+        public string DownloadString(string address)
         {
-            WebRequest request = base.GetWebRequest(address);
-            // Windows proxy auto-detection (WPAD) can stall requests for
-            // over a minute on legacy installs; the demo talks directly.
+            return Send(address, "GET", null);
+        }
+
+        public string UploadString(string address, string method, string body)
+        {
+            return Send(address, method, body);
+        }
+
+        private string Send(string address, string method, string body)
+        {
+            Uri uri = new Uri(address);
+            if (uri.Scheme == "https" && Environment.OSVersion.Platform == PlatformID.Win32NT)
+                return SendWindowsHttps(address, method, body);
+
+            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(uri);
             request.Proxy = null;
             request.Timeout = 10000;
-            HttpWebRequest httpRequest = request as HttpWebRequest;
-            if (httpRequest != null) httpRequest.ReadWriteTimeout = 10000;
-            return request;
+            request.ReadWriteTimeout = 10000;
+            request.Method = method;
+            foreach (string key in Headers.AllKeys)
+            {
+                if (String.Equals(key, "Content-Type", StringComparison.OrdinalIgnoreCase))
+                    request.ContentType = Headers[key];
+                else request.Headers[key] = Headers[key];
+            }
+            if (body != null)
+            {
+                byte[] bytes = Encoding.GetBytes(body);
+                request.ContentLength = bytes.Length;
+                using (Stream stream = request.GetRequestStream()) stream.Write(bytes, 0, bytes.Length);
+            }
+            using (WebResponse response = request.GetResponse())
+            using (StreamReader reader = new StreamReader(response.GetResponseStream(), Encoding))
+                return reader.ReadToEnd();
         }
+
+        private string SendWindowsHttps(string address, string method, string body)
+        {
+            // .NET 2.0 cannot negotiate Railway HTTPS. WinHTTP uses Windows
+            // Schannel directly and can request TLS 1.2 without upgrading PIS.
+            Type type = Type.GetTypeFromProgID("WinHttp.WinHttpRequest.5.1");
+            if (type == null) throw new InvalidOperationException("Windows WinHTTP 5.1 is unavailable.");
+            object client = Activator.CreateInstance(type);
+            try
+            {
+                type.InvokeMember("SetTimeouts", BindingFlags.InvokeMethod, null, client,
+                    new object[] { 10000, 10000, 10000, 10000 });
+                type.InvokeMember("SetProxy", BindingFlags.InvokeMethod, null, client, new object[] { 1 });
+                // WinHttpRequestOption_SecureProtocols = 9; TLS 1.2 = 0x800.
+                type.InvokeMember("Option", BindingFlags.SetProperty, null, client, new object[] { 9, 2048 });
+                type.InvokeMember("Open", BindingFlags.InvokeMethod, null, client, new object[] { method, address, false });
+                foreach (string key in Headers.AllKeys)
+                    type.InvokeMember("SetRequestHeader", BindingFlags.InvokeMethod, null, client, new object[] { key, Headers[key] });
+                type.InvokeMember("Send", BindingFlags.InvokeMethod, null, client,
+                    new object[] { body == null ? (object)Type.Missing : Encoding.GetBytes(body) });
+                int status = Convert.ToInt32(type.InvokeMember("Status", BindingFlags.GetProperty, null, client, null));
+                if (status < 200 || status >= 300) throw new WebException("Railway API returned HTTP " + status + ".");
+                return (string)type.InvokeMember("ResponseText", BindingFlags.GetProperty, null, client, null);
+            }
+            catch (TargetInvocationException error)
+            {
+                Exception cause = error.InnerException ?? error;
+                throw new WebException("HTTPS connection failed. Windows 7 needs TLS 1.2 support and current root certificates. " + cause.Message, cause);
+            }
+            finally
+            {
+                System.Runtime.InteropServices.Marshal.FinalReleaseComObject(client);
+            }
+        }
+
+        public void Dispose() { }
     }
 
     internal sealed class SimpleJson
@@ -236,7 +301,7 @@ namespace ClinicClick.PisPlugin
 
     public static class Plugin
     {
-        private const string DefaultApiUrl = "http://65.20.78.208";
+        private const string DefaultApiUrl = "https://api-production-2579.up.railway.app";
         private const string ClinicId = "clinic-demo";
         private static bool installed;
 

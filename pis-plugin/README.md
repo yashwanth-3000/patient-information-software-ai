@@ -20,3 +20,23 @@ Build:
 
 Windows requires the 32-bit Jet provider already used by PIS. Keep the plugin
 DLL and generated config beside `PIS-ClinicClick.exe`.
+
+## Railway connection
+
+The plugin now defaults to `https://api-production-2579.up.railway.app`.
+On Windows it uses WinHTTP 5.1 with TLS 1.2 for HTTPS, so the existing
+.NET 2.0 PIS executable can remain unchanged. Certificate validation stays
+enabled. Windows 7 must have TLS 1.2 support and valid root certificates.
+If either is missing, the system status dialog reports the HTTPS failure.
+
+After building, close PIS and copy these three files from `bin/` into the
+Windows PIS folder, beside its existing `Homeopathy.mdb`:
+
+- `PIS-ClinicClick.exe`
+- `ClinicClick.PisPlugin.dll`
+- `PIS-ClinicClick.exe.config`
+
+Restart `PIS-ClinicClick.exe`, open the system status dialog, and refresh.
+The server address should show Railway and live sync should show connected.
+Then `GET https://api-production-2579.up.railway.app/api/patients/<regno>`
+returns the patient details and all dated prescriptions read from that PIS.

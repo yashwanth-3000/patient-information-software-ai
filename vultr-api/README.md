@@ -35,9 +35,9 @@ Patient history is available at `GET /api/patients/<regno>` when the PIS plugin
 polls the same service. The response contains patient details and the full
 dated prescription list from PIS. A 504 means the PIS plugin did not answer.
 
-Railway redirects HTTP to HTTPS. The legacy Windows runtime must support
-Railway's TLS connection before changing `ClinicClickApiUrl` to this URL.
-The current plugin configuration still points to the old Vultr address below.
+Railway redirects HTTP to HTTPS. The updated PIS plugin uses Windows WinHTTP
+with TLS 1.2 and defaults to this URL. Install the rebuilt executable, plugin,
+and config together. Windows needs TLS 1.2 support and valid root certificates.
 
 ### Previous Vultr deployment
 
