@@ -22,6 +22,25 @@ environment variable.
 
 ## Deployment
 
+### Railway
+
+The patient lookup relay is deployed in the `clinicclick-pis-demo` project,
+production environment, `api` service:
+
+`https://api-production-2579.up.railway.app`
+
+Deploy this directory as the service root with `railway up . --path-as-root`.
+Railway sets `PORT`; the server listens on all interfaces and exposes `/health`.
+Patient history is available at `GET /api/patients/<regno>` when the PIS plugin
+polls the same service. The response contains patient details and the full
+dated prescription list from PIS. A 504 means the PIS plugin did not answer.
+
+Railway redirects HTTP to HTTPS. The legacy Windows runtime must support
+Railway's TLS connection before changing `ClinicClickApiUrl` to this URL.
+The current plugin configuration still points to the old Vultr address below.
+
+### Previous Vultr deployment
+
 The API runs on a Vultr instance (Mumbai) as the `clinicclick` systemd service,
 listening on port 80 over plain HTTP because the legacy Windows 7 .NET stack
 cannot negotiate TLS 1.2.

@@ -5,7 +5,7 @@ const { server } = require("./server");
 
 after(() => server.close());
 
-test("health and pending demo jobs", async () => {
+test("health and empty initial queue", async () => {
   await new Promise(resolve => server.listening ? resolve() : server.once("listening", resolve));
   const address = server.address();
   const base = `http://127.0.0.1:${address.port}`;
@@ -14,8 +14,7 @@ test("health and pending demo jobs", async () => {
   assert.equal(health.ok, true);
 
   const pending = await fetch(`${base}/api/pis/pending?clinic_id=clinic-demo`).then(response => response.json());
-  assert.equal(pending.jobs.length, 2);
-  assert.equal(pending.jobs[0].status, "approved");
+  assert.deepEqual(pending.jobs, []);
 });
 
 test("agent submissions join the pending queue", async () => {
